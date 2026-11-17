@@ -1,0 +1,46 @@
+[
+  {
+    "skills": ["data-layer"],
+    "query": "Implement the use case enroll(profileId, courseId) in src/data for RF-PRG-01. Clicking 'Começar o curso' twice must not create two enrollments.",
+    "files": [],
+    "expected_behavior": [
+      "Starts from the session gate and confirms the profile belongs to the session's user in the query itself (owner-scoped), not only in a separate check",
+      "Writes with insert ... onConflictDoNothing (or onConflictDoUpdate) targeting the unique (profile_id, course_id) key instead of a select-then-insert",
+      "Returns the existing enrollment on the second call with no error",
+      "Tests against a real Postgres (service container or Docker) calling enroll twice, and with another user's profile id, without mocking Drizzle"
+    ]
+  },
+  {
+    "skills": ["data-layer"],
+    "query": "Rename the column courses.level to courses.difficulty.",
+    "files": [],
+    "expected_behavior": [
+      "Classifies the rename as a contract change and splits it into an expand PR now and a contract PR later",
+      "The expand PR adds difficulty, backfills it with an idempotent custom migration (WHERE difficulty IS NULL), and moves reads and writes to difficulty",
+      "Leaves dropping level to the later contract PR and says so in the ticket comment",
+      "Reads the generated SQL and confirms no statement drops data; never edits an already applied migration"
+    ]
+  },
+  {
+    "skills": ["data-layer"],
+    "query": "Implement catalog search by course title and author name, ignoring case and accents, for RF-CAT-02.",
+    "files": [],
+    "expected_behavior": [
+      "Normalizes the term with the same normalizeSearchText function that writes courses.search_text",
+      "Escapes % and _ in the term and queries search_text with ilike, served by the GIN trigram index using extensions.gin_trgm_ops",
+      "Takes the catalog scope as an argument and applies the RN-04 child restriction in the WHERE clause",
+      "Paginates 24 per page with a stable order ending in id, and calls no unaccent() at query time"
+    ]
+  },
+  {
+    "skills": ["data-layer"],
+    "query": "When a lesson is marked complete, recompute whether the course is completed (RN-03) and send the student a congratulations e-mail when it is.",
+    "files": [],
+    "expected_behavior": [
+      "Runs the progress write and the completion recalculation in one db.transaction, every statement on tx",
+      "Reads the rows the completion depends on with .for('update') inside the transaction",
+      "Sends the e-mail after the commit, inside after(), never inside the transaction",
+      "Tests that a failure inside the transaction leaves neither the progress row nor the completion behind"
+    ]
+  }
+]

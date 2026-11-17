@@ -1,0 +1,35 @@
+[
+  {
+    "skills": ["auth-identity"],
+    "query": "Build the sign-in page with 'Lembrar de mim', returning the user to the page they originally requested (RF-AUT-03 and RF-AUT-07).",
+    "files": [],
+    "expected_behavior": [
+      "The form signs in through the Better Auth client over HTTP (authClient), not through a Server Action calling auth.api, so rate limiting applies",
+      "Passes the remember-me choice to the sign-in call",
+      "proxy.ts only checks that the session cookie exists and redirects to sign-in keeping the requested path",
+      "Accepts the return path only when it is a relative path on this site, so the redirect cannot be used to send users elsewhere"
+    ]
+  },
+  {
+    "skills": ["auth-identity"],
+    "query": "Let the account holder switch from a child profile back to their own profile.",
+    "files": [],
+    "expected_behavior": [
+      "Stores the active profile server-side in session_profiles, written only by setActiveProfile, with no client-held profile cookie",
+      "Requires verifyPin when leaving a child profile for a standard one, and no PIN for other switches",
+      "Locks PIN entry for 15 minutes after five wrong attempts and resets the counter on success",
+      "Returns notFound for another user's profile id, and tests the wrong-PIN lock and that /api/auth/* requests cannot change the active profile"
+    ]
+  },
+  {
+    "skills": ["auth-identity"],
+    "query": "Allow an admin to change a staff member's role in the backoffice.",
+    "files": [],
+    "expected_behavior": [
+      "Guards the action with requireStaff('user:manage', { fresh: true }) and returns a reauth result when the session is older than 10 minutes",
+      "Reads the acting admin's role from the database through the session gate, with no role taken from client input",
+      "Writes the change and its audit_log row in the same transaction",
+      "Tests that an instructor is refused and that the admin plugin grants no impersonation"
+    ]
+  }
+]
