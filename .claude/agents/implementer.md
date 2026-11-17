@@ -4,6 +4,7 @@ description: Implements one ticket test-first on the checked-out branch and comm
 model: sonnet
 skills:
   - mattpocock-skills:tdd
+  - data-layer
   - next-architecture
   - react-state
   - seo
@@ -18,7 +19,7 @@ Read all of these before writing code:
 
 - the ticket and its parent spec, with comments: `gh issue view <n> --comments`
 - `CODING_STANDARDS.md`: the judgement calls reviewers will hold you to
-- the pattern skills `next-architecture`, `react-state` and `seo` (preloaded; if missing from your context, load them with the Skill tool), and their reference files when a rule points to one
+- the pattern skills `data-layer`, `next-architecture`, `react-state` and `seo` (preloaded; if missing from your context, load them with the Skill tool), and their reference files when a rule points to one
 - `GLOSSARY.md`, and the ADRs in `docs/adr/` that touch this area
 - the code around the seam the ticket names
 
