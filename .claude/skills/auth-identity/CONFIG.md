@@ -35,6 +35,14 @@ export const auth = betterAuth({
       '/send-verification-email': { window: 60, max: 3 },
     },
   },
+  databaseHooks: {
+    session: {
+      create: {
+        // Drop the IP before the session row is written (RNF-SEG-15)
+        before: async (session) => ({ data: { ...session, ipAddress: null } }),
+      },
+    },
+  },
   advanced: { database: { generateId: () => uuidv7() } },
   plugins: [admin({ ac, roles, defaultRole: 'user' }), nextCookies()],
 })
@@ -46,7 +54,7 @@ export const auth = betterAuth({
 - **`rateLimit.enabled: true`.** The default is off in development, so tests and local runs would never meet the real limits.
 - **`storage: 'database'`.** Memory storage dies with each serverless instance.
 - **Session cookie cache stays off.** With it on, a ban or a revoked session survives until the cache expires; off, it ends on the next request.
-- **IP tracking stays on.** Rate limiting keys on the client IP, which is stored in `session` and `rateLimit`. The IP is never shown in the UI or written to logs (RPV-06).
+- **IP tracking stays on; the session keeps no IP.** Rate limiting reads the client IP from the request (`x-forwarded-for`) on every call and keys the `rateLimit` rows on it; Better Auth prunes expired rows itself. `advanced.ipAddress.disableIpTracking` would switch rate limiting off entirely, so it stays unset. The session row never needs the IP, so the `session.create.before` hook drops it. The full IP goes only to the security log (`security_events`, RNF-SEG-15), never to the UI or the application logs. Confirm in R0 that the hook leaves `ip_address` empty and that rate limiting still applies behind Vercel (spec section 10.4, check 3).
 - **Sign-up enumeration is accepted.** With `autoSignIn` on and verification not required at sign-in, signing up with an existing e-mail returns an error. Better Auth hides this only when sign-in waits for verification. RF-AUT-04 requires identical responses only on password reset, which does not reveal accounts.
 - **Fields users must not set** (`role`, `banned`, phone verification) are declared with `input: false` whenever they appear in `additionalFields`.
 - **Plugins in the MVP:** `admin` and `nextCookies`, with `nextCookies` last as the docs require. MFA arrives post-MVP as the `twoFactor` plugin plus a migration (RF-AUT-08).
