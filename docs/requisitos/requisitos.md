@@ -1,6 +1,6 @@
-# DG Formação (Plataforma de Cursos Evangélicos) — Requisitos v2.3
+# DG Formação (Plataforma de Cursos Evangélicos) — Requisitos v2.4
 
-Versão 2.3 · 17/11/2026 · Rascunho para validação · Evolui a v2.2 com o refinamento técnico e o desenho do sistema (System Design) do MVP em planos gratuitos
+Versão 2.4 · 18/11/2026 · Rascunho para validação · Evolui a v2.3 com as decisões da descoberta (F1) e do desenho do sistema (F4): ADRs em `docs/adr/`, glossário em `GLOSSARY.md` e o que a v2.3 deixou como proposto. O caminho deste documento é fixo (`docs/requisitos/requisitos.md`); a versão fica aqui no cabeçalho
 
 ## 1. Controle do documento
 
@@ -23,6 +23,8 @@ Versão 2.3 · 17/11/2026 · Rascunho para validação · Evolui a v2.2 com o re
 | ADR-001 | Aceito: backoffice próprio mínimo (C) com carga inicial por planilha (D) | Seção 9.2 |
 | ADR-002 | Aceito: PDFs em object storage com URL assinada (Cloudflare R2 na v2.3) | Seções 9.2 e 9.12 |
 | ADR-003 | Substituído na v2.3 pela ADR-008: Better Auth na própria aplicação, no lugar de autenticação gerenciada | Seção 9.9 |
+| ADR-004 | Aceito: conta do titular com perfis | Seção 9.3 |
+| ADR-005 | Aceito na v2.4: busca e filtros no próprio Postgres, sem `unaccent` | Seção 9.4 |
 | ADR-006 | Aceito na v2.3: Next.js 16.4 com renderização híbrida por rota | Seção 9.7 |
 | ADR-007 | Aceito: hospedagem e dados em planos gratuitos | Seção 9.8 |
 | ADR-008 | Aceito: autenticação com Better Auth | Seção 9.9 |
@@ -84,13 +86,31 @@ A v2.3 transforma a arquitetura da seção 9 em desenho do sistema, com a stack,
 | Metas recalibradas | P-01, RNF-PER-04 a 07, RNF-DIS-01, 04, 05 e 06, RNF-OBS-01, 02, 04 a 08, RNF-SEG-02, 03, 05, 06 e 08, RNF-QUA-02 a 04 | Aceito (RPO de 24 h em D-11) |
 | Autenticação | ADR-003 substituída pela ADR-008 (Better Auth); glossário com os nomes de tabela do Better Auth | Aceito |
 | “API-first” vira “casos de uso primeiro” | P-03, RF-HOM-05 e 06, seção 9.6 | Aceito |
-| Permissões mapeadas no código | Seção 4; modelo de dados (saem `permissions` e `role_permissions`) | Proposto |
-| Refinamentos técnicos | RF-AUT-01, RF-CUR-06, RF-APR-01, 02 e 05, RF-ADM-03, 12 e 14, RN-02, RN-05, RN-10, RPV-12, RPV-15, RNF-DAD-01, 03 e 04, modelo de dados v3 | Proposto |
+| Permissões mapeadas no código | Seção 4; modelo de dados (saem `permissions` e `role_permissions`) | Aceito na v2.4 (18/11/2026) |
+| Refinamentos técnicos | RF-AUT-01, RF-CUR-06, RF-APR-01, 02 e 05, RF-ADM-03, 12 e 14, RN-02, RN-05, RN-10, RPV-12, RPV-15, RNF-DAD-01, 03 e 04, modelo de dados v3 | Aceito na v2.4 (18/11/2026), com ajustes (seção 1.6) |
 | Decisões pendentes | DP-09, 13, 14, 21 e 23 a 27 decididas em 17/11/2026; DP-11 com nova recomendação | — |
 | Segurança como prioridade do MVP (DP-27) | Novas RNF-SEG-10 a 14; seção 9.12.12 (repositório público e cadeia de suprimentos); ADR-010 reavaliada | Aceito |
 | MFA das contas de equipe adiado por custo | RF-AUT-08, RNF-SEG-01, ADR-008, seção 9.12.3 (proteções no lugar), modelo de dados, riscos | Aceito |
 | Vídeo com provedor guardado (DP-23) | RN-09; modelo de dados (nova tabela `videos`, usada por aulas e trailers); seção 9.12.5 | Aceito |
-| Roadmap | Nova seção 10.4: fatias de entrega R0 a R5, com as verificações do R0 | Proposto |
+| Roadmap | Nova seção 10.4: fatias de entrega R0 a R5, com as verificações do R0 | Aceito na v2.4 (18/11/2026) |
+
+### 1.6 Alterações da v2.4
+
+A v2.4 registra a descoberta (F1) e o desenho do sistema (F4) feitos no repositório. O vocabulário passa a viver no `GLOSSARY.md`, na raiz, e cada ADR num arquivo de `docs/adr/` (0001 a 0010). Em caso de divergência, valem o glossário e as ADRs. Os itens propostos da v2.3 foram decididos, e nenhuma decisão nova pediu ADR, porque todas são fáceis de reverter. Os IDs continuam sem renumeração.
+
+| Mudança | Requisitos afetados | Status |
+| --- | --- | --- |
+| Glossário e ADRs fora deste documento | Seção 3 (fonte passa a ser o `GLOSSARY.md`), seção 9 (ADRs em `docs/adr/`); caminho fixo `docs/requisitos/requisitos.md` | Aceito |
+| ADR-005 aceita, com dois ajustes: sem a extensão `unaccent` (a normalização é da aplicação) e `search_text` recalculado quando muda o título ou o nome de um autor | Seção 9.4, RNF-DAD-03, RNF-DAD-04, modelo de dados | Aceito |
+| Papéis e permissões: só Instrutor e Admin são papéis guardados; Visitante e Aluno não; mapa de permissões no código | Seção 4, glossário | Aceito |
+| Conta de equipe não tem perfil infantil: a permissão é da conta, não do perfil | Seção 4, RF-AUT-08, RF-PRF-02 | Aceito |
+| Respostas de recusa: 404 para o que está fora do alcance, 403 para ação negada sobre recurso visível | Seção 4 | Aceito |
+| Ajustes dos refinamentos: RN-02 exige 1 autor (não 1 instrutor); a duração do vídeo fica só em `videos`; a aula aponta para o vídeo por `lessons.video_id` (sai `lesson_videos`) | RN-02, RN-10, modelo de dados | Aceito |
+| IP fora da sessão, com o rate limit mantido: um gancho do Better Auth esvazia o IP da sessão. A opção `disableIpTracking` desligaria também o rate limit | Modelo de dados (`sessions`), seção 9.12.3, 10.4 (verificação 3), skill `auth-identity` (CONFIG.md) | Aceito |
+| Registro de segurança com IP, para investigar incidentes e ataques, retido por 6 meses | Nova RNF-SEG-15, modelo de dados (`security_events`), seções 9.12.3, 9.12.6 e 9.12.8, RPV-11, DP-11, 10.4 (R0) | Aceito; retenção a confirmar pelo jurídico (DP-11) |
+| Fronteiras de módulo: `identity` vira `auth`; cada tabela tem um módulo dono, o único que escreve nela; um módulo importa outro só pela interface pública dele | Seções 9.1, 9.12.1 e 10.4 (R0) | Aceito |
+| Validação na entrada: quem recebe a entrada valida com o schema de `src/domain`; o caso de uso recebe a entrada já validada; lint de tipos contra `any` | Seções 9.6, 9.12.1 e 10.4 (R0) | Aceito |
+| Vocabulário: Titular e Responsável separados; "editor do curso" no lugar de "instrutor dono" | Seção 3, RN-01, RF-ADM-01, RF-ADM-07, glossário | Aceito |
 
 ## 2. Visão, escopo e premissas
 
@@ -127,6 +147,8 @@ Pagamentos, certificados, avaliações e comentários, quizzes, notificações p
 
 ## 3. Glossário
 
+Desde a v2.4, o glossário vive no `GLOSSARY.md`, na raiz do repositório, com o nome usado no código e os termos pendentes de DP. Em caso de divergência, vale o `GLOSSARY.md`. A tabela abaixo é a da v2.3, corrigida só onde a v2.4 mudou um termo.
+
 | Termo | Definição |
 | --- | --- |
 | Conta | Registro do titular adulto (e-mail, senha, nome, telefone). Responde legalmente pelos perfis. No Better Auth, a tabela se chama `user` |
@@ -136,7 +158,9 @@ Pagamentos, certificados, avaliações e comentários, quizzes, notificações p
 | Cota gratuita | Limite de uso de um plano gratuito de provedor, por dia ou por mês (seção 9.13) |
 | Gatilho de upgrade | Nível de uso de uma cota que dispara a troca de plano ou de provedor (seção 9.13) |
 | Perfil | Identidade de uso dentro da conta (titular, filhos, etc.). Guarda nome, avatar, tipo (padrão ou infantil), matrículas e progresso |
-| Responsável / titular | Adulto dono da conta |
+| Titular | Adulto dono da conta. Para o sentido da LGPD, “titular dos dados” |
+| Responsável | O titular agindo como responsável legal por um perfil infantil da conta |
+| Editor do curso | Conta de equipe ligada ao curso, que pode editá-lo (`course_editors`). Substitui “instrutor dono” |
 | Curso (entidade) | Unidade publicável do catálogo: módulos, aulas e materiais |
 | Formato | Classificação derivada do curso: **Curso** (só vídeo), **Estudo** (só leitura) ou **Misto** |
 | Módulo | Agrupador ordenado de aulas dentro de um curso |
@@ -153,7 +177,9 @@ Pagamentos, certificados, avaliações e comentários, quizzes, notificações p
 
 ## 4. Papéis e permissões (RBAC)
 
-Papéis: **Visitante** (não autenticado), **Aluno** (perfil de uma conta), **Instrutor** e **Admin**. Instrutor e Admin são contas de equipe, criadas por convite do admin. Uma conta pode acumular papéis. As permissões são chaves (`course:create`, `course:update:own`, `course:publish`, `course:review`, `taxonomy:manage`, `user:manage`) verificadas no servidor. Proposta da v2.3: o papel de cada conta fica no banco e o mapa de papel para permissões fica no código, numa função pura `can(ator, ação, recurso)` coberta por testes. Com quatro papéis fixos, tabelas de permissões não se pagam no MVP; elas voltam se o admin precisar criar papéis.
+Papéis guardados: **Instrutor** e **Admin**, na Conta. Uma conta com ao menos um deles é uma **conta de equipe**, criada só por convite do admin, e pode acumular os dois. **Visitante** (sem sessão) e **Aluno** (quem estuda por um perfil) aparecem na tabela abaixo, mas não são papéis guardados; no código, a conta sem papel de equipe tem o valor padrão `user` do plugin `admin`. As permissões são chaves (`course:create`, `course:update:own`, `course:publish`, `course:review`, `taxonomy:manage`, `user:manage`) verificadas no servidor. O papel de cada conta fica no banco, e o mapa de papel para permissões fica no código, numa função pura `can(ator, permissão, recurso)` testada como matriz (aceito na v2.4). Com papéis fixos, tabelas de permissões não se pagam no MVP; elas voltam por uma migration de expansão se o admin precisar criar papéis.
+
+**Conta de equipe não tem perfil infantil** (v2.4). A permissão é da conta, não do perfil: uma criança num perfil infantil, na sessão de um instrutor, alcançaria o backoffice. Por isso uma conta com papel de equipe não cria perfil infantil, e uma conta que já tem perfil infantil não recebe papel. Quem é da equipe e tem filhos usa duas contas, com e-mails diferentes (RF-AUT-08 e RF-PRF-02).
 
 | Capacidade | Visitante | Aluno | Instrutor | Admin |
 | --- | --- | --- | --- | --- |
@@ -168,6 +194,17 @@ Papéis: **Visitante** (não autenticado), **Aluno** (perfil de uma conta), **In
 | Gerenciar equipe, papéis e alunos | Não | Não | Não | Sim |
 | Ver métricas | Não | Não | Dos seus cursos | Todas |
 | Ver audit log | Não | Não | Não | Sim |
+
+**Respostas de recusa** (v2.4). Quem não deve saber que um recurso existe recebe “não encontrado”; quem o vê, mas não pode agir sobre ele, recebe “proibido”.
+
+| Situação | Resposta |
+| --- | --- |
+| Sem sessão numa área privada ou em `/media/{id}` | Redireciona para o login (página) ou 401 (rota) |
+| Recurso fora do alcance da conta ou do perfil: curso fora do escopo do catálogo, em rascunho ou arquivado sem matrícula; perfil, matrícula ou arquivo de outra conta; curso de outro instrutor no backoffice; backoffice aberto por conta sem papel | 404 |
+| Recurso visível, mas ação não permitida (por exemplo, o instrutor pedindo para aprovar o próprio curso) | 403 |
+| Sessão de equipe com mais de 12 h ou ação sensível sem login recente (seção 9.12.3) | Pede novo login (`reauth`) |
+
+Numa Server Action, a recusa volta como resultado (`not_found` ou `forbidden`), sem alterar dados; numa rota, como 401, 403 ou 404. As recusas vindas de sessão autenticada, por posse ou por permissão de equipe, vão para o registro de segurança (RNF-SEG-15); um 404 de visitante anônimo não vai.
 
 ## 5. Requisitos funcionais
 
@@ -184,7 +221,7 @@ Prioridades: **MVP**, **Pós-MVP** (até cerca de 6 meses) e **Futuro** (até 24
 | RF-AUT-05 | Política mínima de senha e bloqueio progressivo por tentativas falhas | MVP |
 | RF-AUT-06 | Conteúdo didático exige login; home, catálogo, página do curso e páginas institucionais são públicos. As rotas de aula e de conta são protegidas no servidor (no protótipo nenhuma rota é protegida) | MVP |
 | RF-AUT-07 | Após o login, retornar ao conteúdo originalmente solicitado | MVP |
-| RF-AUT-08 | Contas de equipe criadas por convite do admin. O MFA (TOTP) para contas de equipe saiu do MVP na v2.3 por custo de implementação; no lugar, valem as proteções da seção 9.12.3 (senha mais forte, sessão curta e confirmação de senha em ações sensíveis) | MVP (convite); Pós-MVP (MFA) |
+| RF-AUT-08 | Contas de equipe criadas por convite do admin. O MFA (TOTP) para contas de equipe saiu do MVP na v2.3 por custo de implementação; no lugar, valem as proteções da seção 9.12.3 (senha mais forte, sessão curta e confirmação de senha em ações sensíveis). O convite cria sempre uma conta nova, e conta de equipe não tem perfil infantil (seção 4, v2.4) | MVP (convite); Pós-MVP (MFA) |
 | RF-AUT-09 | Exclusão de conta e de perfis a pedido do titular, atendida manualmente pelo encarregado dentro do prazo legal; sem fluxo self-service no MVP (RN-15) | MVP |
 | RF-AUT-10 | Exportação de dados do titular. No MVP, atendimento manual pelo canal do encarregado | Pós-MVP (automatizar) |
 | RF-AUT-11 | Login social (Google primeiro, depois outros), com vínculo de identidade somente por e-mail verificado. O botão “Continuar com Google” do protótipo fica oculto no MVP | Pós-MVP |
@@ -196,7 +233,7 @@ Prioridades: **MVP**, **Pós-MVP** (até cerca de 6 meses) e **Futuro** (até 24
 | ID | Requisito | Prioridade |
 | --- | --- | --- |
 | RF-PRF-01 | Ao criar a conta, o sistema cria o perfil do titular (tipo padrão), com o nome do cadastro | MVP |
-| RF-PRF-02 | Na tela “Perfis”, o titular cria perfis adicionais informando só o nome, o avatar (de um conjunto fixo) e se o perfil é **infantil** (interruptor). Perfil infantil é para menores até o limite legal de idade (parâmetro `child_profile_max_age`; 16, a confirmar em DP-02). Limite de perfis por conta configurável (sugestão: 5) | MVP |
+| RF-PRF-02 | Na tela “Perfis”, o titular cria perfis adicionais informando só o nome, o avatar (de um conjunto fixo) e se o perfil é **infantil** (interruptor). Perfil infantil é para menores até o limite legal de idade (parâmetro `child_profile_max_age`; 16, a confirmar em DP-02). Limite de perfis por conta configurável (sugestão: 5). Conta de equipe não cria perfil infantil (seção 4, v2.4) | MVP |
 | RF-PRF-03 | Seleção do perfil ativo: tela “Quem está assistindo?” após o login quando há mais de um perfil, e troca de perfil pelo menu a qualquer momento. O último perfil é lembrado no dispositivo. Matrículas, progresso e “Meus cursos” são sempre do perfil ativo | MVP |
 | RF-PRF-04 | Edição de perfil: nome, avatar e tipo (padrão ou infantil) | MVP |
 | RF-PRF-05 | Acompanhamento pelo responsável: na tela “Perfis”, o titular abre a visão somente leitura de “Meus cursos” de cada perfil infantil (em andamento e concluídos, com progresso). Perfis infantis não têm login próprio nem interação social | MVP |
@@ -291,13 +328,13 @@ Implementa a ADR-001: backoffice próprio mínimo (C) e carga inicial por planil
 
 | ID | Requisito | Prioridade |
 | --- | --- | --- |
-| RF-ADM-01 | Lista de cursos com filtros por status e instrutor | MVP |
+| RF-ADM-01 | Lista de cursos com filtros por status e editor do curso | MVP |
 | RF-ADM-02 | Formulário do curso: título, sinopse, descrição, capa, trailer (opcional), nível, categorias (uma principal), públicos-alvo, autores, “o que você vai aprender” e pré-requisitos | MVP |
 | RF-ADM-03 | Editor de currículo: módulos e aulas, reordenação por arrastar, tipo da aula, URL do YouTube (o sistema extrai e valida o ID), duração do vídeo ou tempo estimado de leitura (`estimated_minutes`), miniatura da aula de vídeo (enviada pela equipe; na falta dela, a capa do curso) e upload do PDF e dos materiais direto do navegador para o storage, por URL assinada de envio | MVP |
 | RF-ADM-04 | Estados do curso e transições (RN-01): o instrutor envia para aprovação; o admin aprova ou mantém em rascunho | MVP |
 | RF-ADM-05 | Revisão simples: o admin abre a pré-visualização somente leitura e decide entre Aprovar (publica) e Manter em rascunho. Sem checklist, comentários ou edição na plataforma; o motivo é combinado fora dela. Ficam registrados o revisor, a decisão e a data. O instrutor não publica o próprio curso | MVP |
 | RF-ADM-06 | Validações de publicação (RN-02) | MVP |
-| RF-ADM-07 | Pré-visualização somente leitura, como o aluno vê, sem criar matrícula nem progresso e sem ações de edição; disponível ao instrutor dono e, durante a revisão, ao admin | MVP |
+| RF-ADM-07 | Pré-visualização somente leitura, como o aluno vê, sem criar matrícula nem progresso e sem ações de edição; disponível ao editor do curso e, durante a revisão, ao admin | MVP |
 | RF-ADM-08 | Carga inicial por planilha/CSV validada: cria cursos, módulos e aulas como rascunho e devolve relatório de erros por linha | MVP |
 | RF-ADM-09 | Arquivar em vez de excluir aulas, módulos e cursos | MVP |
 | RF-ADM-10 | Audit log das ações do backoffice (quem, o quê, quando, antes e depois) | MVP |
@@ -328,15 +365,15 @@ O protótipo tem duas páginas institucionais e vários links de rodapé que os 
 
 | ID | Regra |
 | --- | --- |
-| RN-01 | **Ciclo de vida do curso:** `rascunho` → `em revisão` → `publicado` → `arquivado`. O instrutor dono envia o curso para aprovação quando ele cumpre a RN-02. Na revisão, o admin só abre a pré-visualização somente leitura e escolhe **Aprovar** (publica) ou **Manter em rascunho** (volta a `rascunho`, sem comentários na plataforma; o motivo é combinado fora dela). Em curso `publicado`, **Manter em rascunho** retira o curso do ar para correções. `arquivado` some do catálogo, da home e da busca; quem já está matriculado mantém acesso em “Meus cursos”, com aviso. Só o admin aprova, mantém em rascunho e arquiva. Cada envio gera um registro de revisão (revisor, decisão e data) |
-| RN-02 | **Pré-requisitos para enviar para aprovação:** título, sinopse, descrição, capa, ao menos 1 categoria (uma principal), ao menos 1 público-alvo, ao menos 1 instrutor, ao menos 1 módulo e 1 aula, e todas as aulas completas (vídeo com provedor, ID e duração; leitura com PDF anexado e tempo estimado de leitura, `estimated_minutes`). A publicação exige ainda a aprovação do admin (RN-01) |
+| RN-01 | **Ciclo de vida do curso:** `rascunho` → `em revisão` → `publicado` → `arquivado`. O editor do curso o envia para aprovação quando ele cumpre a RN-02. Na revisão, o admin só abre a pré-visualização somente leitura e escolhe **Aprovar** (publica) ou **Manter em rascunho** (volta a `rascunho`, sem comentários na plataforma; o motivo é combinado fora dela). Em curso `publicado`, **Manter em rascunho** retira o curso do ar para correções. `arquivado` some do catálogo, da home e da busca; quem já está matriculado mantém acesso em “Meus cursos”, com aviso. Só o admin aprova, mantém em rascunho e arquiva. Cada envio gera um registro de revisão (revisor, decisão e data) |
+| RN-02 | **Pré-requisitos para enviar para aprovação:** título, sinopse, descrição, capa, ao menos 1 categoria (uma principal), ao menos 1 público-alvo, ao menos 1 autor (RN-18; na v2.3, “instrutor”), ao menos 1 módulo e 1 aula, e todas as aulas completas (vídeo com provedor, ID e duração; leitura com PDF anexado e tempo estimado de leitura, `estimated_minutes`). A publicação exige ainda a aprovação do admin (RN-01) |
 | RN-03 | **Conclusão:** o status fica materializado na matrícula. Ao marcar uma aula, se todas as aulas publicadas estiverem concluídas, o curso vira concluído e grava `completed_at` (e `first_completed_at` na primeira vez). Ao desmarcar uma aula de um curso concluído, ele volta a em andamento. O status só é recalculado por ação do aluno, nunca por edição do curso (RN-05) |
 | RN-04 | **Perfil infantil e acesso:** (a) ao criar o perfil, o titular define se ele é infantil; (b) perfil infantil é para menores até a idade limite legal (`child_profile_max_age`; 16, a confirmar em DP-02); (c) perfil infantil só vê cursos com ao menos um público-alvo marcado como permitido para crianças (`allowed_for_child`; inicialmente Infantil e Jovens); (d) perfil padrão vê o catálogo completo; (e) o filtro de faixa etária do catálogo (RF-CAT-05) é só um filtro de busca; (f) nenhuma idade autodeclarada é usada para restringir conteúdo. Pendente de validação (DP-02 e DP-03) |
 | RN-05 | **Disponibilização:** o curso tem `release_mode` `full` (MVP) ou `incremental` (futuro). No MVP, é publicado com todas as aulas. A aula tem `status` e `published_at` próprios, então liberar aulas depois não exige mudar o schema. Curso `publicado` é bloqueado para edição: para alterar, o admin o devolve a `rascunho`, o instrutor edita e reenvia para aprovação (edição por versão, sem tirar o curso do ar, fica para o futuro; DP-14). Aulas e módulos nunca são apagados, só arquivados. Nova aula não reabre matrículas concluídas (`on_new_lesson = keep_completed`); matrículas em andamento passam a refletir o novo total. A correção de textos sem despublicar foi avaliada na v2.3 e fica para depois do MVP (DP-14) |
 | RN-07 | **Popularidade:** número de novas matrículas nos últimos 30 dias, calculado por job diário e gravado em `course_stats`; desempate pela data de publicação. A ordenação nunca agrega ao vivo |
 | RN-08 | **Formato (derivado):** Curso se todas as aulas são de vídeo, Estudo se todas são de leitura, Conteúdo Misto nos demais casos (rótulos do protótipo: Curso, Estudo e Conteúdo Misto). Materiais complementares não contam. Recalculado ao alterar o currículo e gravado em coluna indexada |
 | RN-09 | **Vídeo por provedor:** todo vídeo, de aula ou trailer, é um registro em `videos` com `provider` (`youtube` no MVP, depois `mux` ou `bunny`) e `external_id`; aulas e cursos apontam para esse registro, nunca para uma URL. A URL de embed é gerada pelo adaptador do provedor. IDs de aula, matrícula e progresso não dependem do provedor, então a migração é um script que troca `provider` e `external_id` em `videos`, vídeo a vídeo, sem tocar no resto. Vídeos do YouTube ficam em canal institucional (decidido em 17/11/2026, DP-23) |
-| RN-10 | **Totais derivados** (duração, nº de vídeos, de leituras e de materiais) são calculados a partir das aulas publicadas e guardados na publicação. Nunca são digitados. A duração de uma aula de leitura é o seu `estimated_minutes` |
+| RN-10 | **Totais derivados** (duração, nº de vídeos, de leituras e de materiais) são calculados a partir das aulas publicadas e guardados na publicação. Nunca são digitados. A duração de uma aula de vídeo é a do seu vídeo (`videos.duration_seconds`), e a de uma aula de leitura é o seu `estimated_minutes`; uma única função pura calcula as duas (v2.4) |
 | RN-11 | **Progresso:** a fonte da verdade é `lesson_progress` por perfil. Percentual = aulas concluídas ÷ aulas publicadas (versão ponderada por duração: futuro) |
 | RN-12 | **Telefone:** pertence à conta. Finalidades: segurança e recuperação da conta, verificação do responsável e comunicações operacionais. Uso em marketing exige consentimento específico e separado. Nunca é exibido a terceiros e é mascarado em telas e logs |
 | RN-13 | **Categorias:** lista fechada; cada curso tem de 1 a 3 (limite configurável), uma delas principal |
@@ -372,7 +409,7 @@ A LGPD classifica convicção religiosa como dado pessoal sensível (art. 5º, I
 | RPV-08 | Sem publicidade nem SDKs de rastreamento de terceiros, e nenhum compartilhamento de dados de uso além dos operadores contratados. O embed do YouTube só carrega após o clique (RF-APR-01) | MVP |
 | RPV-09 | Analytics first-party com identificadores pseudonimizados; nenhum e-mail, telefone ou nome em eventos e logs | MVP |
 | RPV-10 | Criptografia em trânsito e em repouso. O acesso do admin a dados de alunos é restrito por permissão e registrado no audit log | MVP |
-| RPV-11 | Relatório de Impacto à Proteção de Dados (RIPD) elaborado antes do lançamento e encarregado (DPO) designado, com canal publicado | MVP |
+| RPV-11 | Relatório de Impacto à Proteção de Dados (RIPD) elaborado antes do lançamento e encarregado (DPO) designado, com canal publicado. O RIPD inclui o registro de segurança, que guarda IP (RNF-SEG-15) | MVP |
 | RPV-12 | Operadores (autenticação, e-mail, SMS, hospedagem) com contrato de tratamento de dados; preferência por região Brasil e avaliação de transferência internacional (art. 33) quando não houver. Os operadores e regiões do desenho da v2.3 estão na seção 9.12.10; os backups do banco ficam fora do Brasil, criptografados antes do envio, e entram na avaliação | MVP |
 | RPV-13 | Retenção: política de contas inativas (sugestão: aviso e anonimização após 24 meses sem acesso, a validar) e exclusão a pedido (RF-AUT-09) | MVP |
 | RPV-14 | Cookies: apenas essenciais por padrão; qualquer cookie não essencial exige consentimento prévio | MVP |
@@ -459,6 +496,7 @@ Coleta first-party, sem SDK de publicidade, com eventos de schema versionado e i
 | RNF-SEG-12 | **Defesas contra XSS além da CSP:** `dangerouslySetInnerHTML` proibido (erro de lint); textos ricos (descrição do curso, “O que você vai aprender”) em Markdown restrito, renderizado por componentes React, sem HTML cru; links aceitos só com `https:` ou caminho relativo; nenhum script de terceiros (RPV-15) |
 | RNF-SEG-13 | **Código e repositório público** (DP-24): ruleset na `main` (PR obrigatório, CI verde, sem force push); varredura de segredos com bloqueio no push, mais gitleaks no CI; CodeQL em todo PR; Dependabot; relato privado de vulnerabilidades (`SECURITY.md`). Workflows com `permissions` mínimas, actions fixadas por SHA e sem `pull_request_target`. Logs e resumos de job nunca imprimem dados pessoais nem segredos, e issues e PRs não descrevem vulnerabilidades ainda abertas |
 | RNF-SEG-14 | **Dados:** conexões ao banco só com TLS; dados reais de produção nunca vão para desenvolvimento, CI ou staging (RNF-QUA-02), nem para cópias locais fora do runbook de restauração; as chaves de cifra (backups, HMAC do analytics, segredo do Better Auth) são separadas entre si e ficam fora do banco e do repositório |
+| RNF-SEG-15 | **Registro de segurança** (v2.4). Uma tabela própria no Postgres (`security_events`) guarda, para investigar incidentes e ataques: login com sucesso e com falha, pedido e conclusão de reset de senha, bloqueio por rate limit (uma vez por janela de contagem, para que um ataque não esgote a cota do banco), bloqueio do PIN, login de conta de equipe e recusas de autorização vindas de sessão autenticada (seção 4). Cada linha tem horário, evento, conta (se houver), IP completo e user agent. O IP completo permite bloquear um atacante no firewall da Vercel ou da Cloudflare; um hash só permitiria correlacionar. É o único lugar que guarda o IP: a sessão, os logs da aplicação e a interface não o têm. Ninguém o lê pela interface; numa investigação, o responsável técnico consulta por SQL, com um papel só de leitura. Retenção de 6 meses, apagada pelo job diário, a confirmar pelo jurídico (DP-11); os eventos de uma conta excluída seguem o mesmo prazo. Entra no RIPD (RPV-11) |
 
 ### 8.6 Acessibilidade e usabilidade
 
@@ -486,8 +524,8 @@ Coleta first-party, sem SDK de publicidade, com eventos de schema versionado e i
 | --- | --- |
 | RNF-DAD-01 | UUIDs (v7, gerados na aplicação) como chaves e horários em UTC; exclusão lógica onde houver histórico (aulas e cursos) e remoção física para dados pessoais (RN-15) |
 | RNF-DAD-02 | Operações de matrícula e conclusão transacionais e idempotentes |
-| RNF-DAD-03 | Índices para os filtros do catálogo, para a busca (trigram sobre a coluna `courses.search_text`, gravada na publicação já em minúsculas e sem acentos, porque `unaccent()` não pode entrar direto num índice; ADR-005) e para as consultas de “Meus cursos” |
-| RNF-DAD-04 | O banco é um Postgres comum: tabelas da aplicação no schema `app`, só extensões padrão (`pg_trgm`, `unaccent`) e nenhum recurso específico do Supabase (Auth, Storage, RLS, Realtime, Edge Functions, Data API), para que trocar de provedor seja dump e restauração (ADR-009) |
+| RNF-DAD-03 | Índices para os filtros do catálogo, para a busca (trigram sobre a coluna `courses.search_text`, em minúsculas e sem acentos, normalizada pela aplicação e recalculada sempre que muda o título do curso ou o nome de um autor ligado a ele; ADR-005) e para as consultas de “Meus cursos” |
+| RNF-DAD-04 | O banco é um Postgres comum: tabelas da aplicação no schema `app`, só a extensão padrão `pg_trgm` (o `unaccent` saiu na v2.4, porque a normalização da busca é da aplicação; ADR-005) e nenhum recurso específico do Supabase (Auth, Storage, RLS, Realtime, Edge Functions, Data API), para que trocar de provedor seja dump e restauração (ADR-009) |
 | RNF-DAD-05 | Analytics no próprio Postgres: eventos brutos guardados por 90 dias e resumo diário mantido, para caber na cota do banco (seção 9.13) |
 
 ### 8.9 Capacidade dos provedores e custos (RNF-CAP)
@@ -516,7 +554,7 @@ Navegador ──► Vercel Hobby (CDN + funções em gru1, São Paulo)
                    ├─ (app)     aula, Meus cursos, perfis → sob demanda, pelo perfil ativo
                    ├─ (admin)   backoffice
                    ├─ api/      auth, /media/{id}, health, jobs (só o que não é React)
-                   └─ módulos: identity · catalog · learning · editorial · home · analytics · audit
+                   └─ módulos: auth · catalog · learning · editorial · home · analytics · audit
                         │
    Supabase Free (São Paulo): só Postgres 17, schema app, pelo pooler ◄── Better Auth (tabelas no mesmo banco)
    Cloudflare R2: capas e imagens (públicas), PDFs e MP3 (URL assinada), backups do banco (criptografados)
@@ -545,12 +583,16 @@ Navegador ──► Vercel Hobby (CDN + funções em gru1, São Paulo)
 
 ### 9.2 ADRs aceitos
 
+Desde a v2.4, cada ADR vive num arquivo de `docs/adr/` (`0001-…` a `0010-…`), com status e o ponteiro para a seção deste documento de onde veio. Em caso de divergência, vale o arquivo.
+
 | ADR | Decisão | Consequências para esta versão |
 | --- | --- | --- |
 | ADR-001 | Backoffice próprio mínimo (C) com carga inicial por planilha (D) | Quatro telas mínimas (lista, formulário do curso, editor de currículo, pré-visualização com aprovação) e um importador CSV. O fluxo editorial inclui revisão e aprovação (RF-ADM-04 e 05). Categorias por seed |
 | ADR-002 | PDFs e materiais em object storage com URL assinada, metadados no banco | `source = storage` ou `external_url`; o Drive só como contingência. TTL curto e visualizador com fallback para celular. Na v2.3: Cloudflare R2, com acesso pela rota estável `/media/{id}` (RF-APR-05) |
 | ADR-003 | Autenticação gerenciada. **Substituída na v2.3 pela ADR-008** (Better Auth na própria aplicação) | Continuam valendo: papéis no banco e e-mail transacional com SPF, DKIM e DMARC. O MFA para admin passou para o pós-MVP (RF-AUT-08). OTP por telefone depende do provedor de SMS (DP-05) |
-| ADR-006 a 009 | Aceitas na v2.3 (17/11/2026) | Seções 9.7 a 9.10 |
+| ADR-004 | Aceita em 05/11/2026 | Seção 9.3 |
+| ADR-005 | Aceita na v2.4 (18/11/2026) | Seção 9.4 |
+| ADR-006 a 010 | Aceitas na v2.3 (17/11/2026) | Seções 9.7 a 9.11 |
 
 ### 9.3 ADR-004 (aceita): identidade em conta e perfis
 
@@ -564,24 +606,24 @@ Navegador ──► Vercel Hobby (CDN + funções em gru1, São Paulo)
 | B. Conta do titular adulto com perfis (recomendada) | Média | Muda o modelo: matrículas e progresso por `profile_id`; o menor não tem login próprio |
 | C. Contas individuais de menores vinculadas à conta do responsável | Alta | Dois logins, convites e painel de supervisão; mais aderente ao texto literal, porém pesado para o MVP |
 
-**Decisão proposta:** B. Tudo o que é do aluno (matrícula, progresso, salvos) é chaveado por `profile_id` desde já, o que mantém aberta a evolução para C sem migrar dados.
+**Decisão:** B. Tudo o que é do aluno (matrícula, progresso, salvos) é chaveado por `profile_id` desde já, o que mantém aberta a evolução para C sem migrar dados.
 
 **Consequências.** O acompanhamento pelo responsável e a classificação confiável do perfil como infantil (definida por ele) vêm quase de graça, e a experiência “Quem está assistindo?” combina com o estilo Netflix. Em troca, há mais telas (gestão de perfis) e a autenticação passa a identificar o titular, não o aluno.
 
 **Escopo no MVP.** Perfil = nome + avatar de um conjunto fixo + interruptor “Perfil infantil”. Até 5 perfis por conta, sem login próprio e sem exclusão pelo titular. O limite de idade do perfil infantil é o parâmetro `child_profile_max_age` (16, a confirmar em DP-02). Sem PIN, uma criança pode trocar para o perfil do titular. A v2.2 deixava o PIN no pós-MVP; na v2.3 ele entra no MVP, porque é o “sistema de bloqueio” que o Decreto 12.880/2026 pede para dispensar a aferição de idade (alerta 1.2, DP-13).
 
-### 9.4 ADR-005 (proposta): busca e filtros no próprio Postgres
+### 9.4 ADR-005 (aceita): busca e filtros no próprio Postgres
 
-**Status:** Proposto.
+**Status:** Aceito na v2.4 (18/11/2026), com dois ajustes na implementação.
 
 | Opção | Complexidade | Observação |
 | --- | --- | --- |
 | A. Postgres com `pg_trgm`, `unaccent` e índices | Baixa | Sem nova infraestrutura; relevância básica, suficiente para um catálogo pequeno |
 | B. Motor dedicado (Meilisearch, Typesense ou OpenSearch) | Média | Melhor relevância e tolerância a erros de digitação; mais um serviço para operar |
 
-**Decisão proposta:** A no MVP. Reavaliar quando tags e pílulas entrarem, quando o catálogo passar de alguns milhares de cursos ou quando a taxa de buscas sem resultado indicar problema.
+**Decisão:** A no MVP. Reavaliar quando tags e pílulas entrarem, quando o catálogo passar de alguns milhares de cursos ou quando a taxa de buscas sem resultado indicar problema.
 
-**Implementação (v2.3).** O `unaccent()` não é IMMUTABLE e por isso não pode ser usado direto num índice. A coluna `courses.search_text` guarda título e nomes dos autores em minúsculas e sem acentos, gravada pela aplicação na publicação, com índice GIN trigram (`pg_trgm`). A consulta aplica a mesma normalização ao termo digitado.
+**Implementação (v2.4).** A coluna `courses.search_text` guarda título e nomes dos autores em minúsculas e sem acentos, com índice GIN trigram (`pg_trgm`). Uma única função da aplicação normaliza o texto para gravar a coluna e normaliza o termo digitado na consulta. O banco nunca chama `unaccent()`, que não é IMMUTABLE e não entraria num índice, por isso a extensão `unaccent` não é usada. O `search_text` é recalculado em toda escrita que muda o título do curso ou o nome de um autor ligado a ele, não só na publicação: o cadastro de autores não é bloqueado pela RN-05, e um autor renomeado não pode sumir da busca. Sem tolerância a erro de digitação no MVP (a RF-CAT-02 não pede); `search_misses` mede as buscas sem resultado.
 
 ### 9.5 Modelo de dados v3
 
@@ -593,8 +635,10 @@ accounts(id, name, email, email_verified, phone_e164, phone_verified_at, roles, 
          created_at, deleted_at)                                 -- Better Auth: user (+ plugin admin)
                                                                  -- roles: instrutor e/ou admin; permissões no código (seção 4)
 auth_identities(id, account_id, provider, provider_user_id, password_hash NULL)   -- Better Auth: account
-sessions(id, account_id, token, expires_at, ip_address, user_agent)   -- Better Auth: session. O IP fica porque o rate limit
-                                                                  -- depende dele; nunca é exibido nem vai para logs (RPV-06)
+sessions(id, account_id, token, expires_at, ip_address, user_agent)   -- Better Auth: session. ip_address fica vazio: um gancho
+                                                                  -- do Better Auth o remove ao criar a sessão (v2.4). O rate limit
+                                                                  -- lê o IP da requisição, não da sessão; o IP só vai para
+                                                                  -- security_events (RNF-SEG-15)
 session_profiles(session_id, profile_id, updated_at)              -- perfil ativo da sessão; só o caso de uso setActiveProfile
                                                                   -- escreve aqui (PIN ao sair de perfil infantil); apaga junto com a sessão
 verifications(id, identifier, value, expires_at)                  -- Better Auth: verification (e-mail e reset)
@@ -615,7 +659,8 @@ courses(id, slug, title, synopsis, description, cover_key, trailer_video_id NULL
         release_mode[full|incremental], access_policy[free], on_new_lesson[keep_completed],
         content_format[video|reading|mixed], total_duration_seconds, lesson_count,
         video_count, reading_count, attachment_count,        -- derivados (RN-08, RN-10)
-        search_text,                                         -- título + autores, sem acentos (ADR-005)
+        search_text,                                         -- título + autores, sem acentos; recalculado quando
+                                                             -- muda o título ou o nome de um autor (ADR-005)
         published_at, updated_at, archived_at)
 authors(id, display_name, bio, photo_key, account_id NULL)   -- autor exibido; pode não ter conta (RN-18)
 course_authors(course_id, author_id, position)
@@ -627,12 +672,13 @@ course_reviews(id, course_id, submitted_by, submitted_at, reviewer_id, decision[
                                                         -- uma linha por envio; checklist e comentários entram depois como colunas
 course_stats(course_id, enrollments_30d, enrollments_total, completions_total, updated_at)
 modules(id, course_id, title, description, position, archived_at)
-lessons(id, module_id, type[video|reading], title, summary, position, duration_seconds,
+lessons(id, module_id, type[video|reading], title, summary, position,
+        video_id NULL,                                       -- → videos, só em aula de vídeo, como o trailer (v2.4)
         estimated_minutes NULL, thumbnail_key NULL,          -- leitura (RN-02) e miniatura própria (RF-APR-01)
-        status, published_at, is_preview, archived_at)
+        status, published_at, is_preview, archived_at)       -- sem duration_seconds: a duração vem do vídeo
+                                                             -- ou de estimated_minutes (RN-10, v2.4)
 videos(id, provider[youtube|mux|bunny], external_id, duration_seconds, status[ok|unavailable],
        last_checked_at NULL, created_at)                    -- todo vídeo, de aula ou trailer (RN-09)
-lesson_videos(lesson_id, video_id)                          -- v2: provider e external_id saem daqui para videos
 lesson_documents(lesson_id, source[storage|external_url], storage_key, external_url, mime, size_bytes, pages)
 attachments(id, lesson_id NULL, course_id NULL, title, storage_key, mime, size_bytes, position)
 
@@ -654,6 +700,9 @@ analytics_events(id, name, schema_version, profile_hash, course_id NULL, lesson_
 analytics_daily(day, name, course_id NULL, count)       -- resumo diário, mantido (RNF-DAD-05)
 search_misses(day, term_normalized, count)              -- buscas sem resultado, sem vínculo ao perfil (RF-CAT-10)
 job_runs(job, started_at, finished_at, status, details jsonb)   -- job diário, backups, relatório de capacidade
+security_events(id, at, event, account_id NULL, ip, user_agent, details jsonb)
+                                                        -- registro de segurança, único lugar com IP; 6 meses
+                                                        -- (RNF-SEG-15, retenção a confirmar na DP-11)
 
 -- Pós-MVP: MFA das contas de equipe (plugin twoFactor do Better Auth)
 two_factors(account_id, secret, backup_codes)           -- guardados cifrados; accounts ganha two_factor_enabled
@@ -667,13 +716,13 @@ home_sections(id, title, kind, config jsonb, position, is_active, starts_at NULL
 home_section_items(section_id, course_id, position)
 ```
 
-**Índices principais:** `courses(status, published_at)`, `courses(content_format)`, `course_categories(category_id)`, `course_audiences(audience_id)`, GIN trigram em `courses.search_text`, `enrollments(profile_id, status, last_accessed_at)` e `analytics_events(at)` (limpeza dos 90 dias).
+**Índices principais:** `courses(status, published_at)`, `courses(content_format)`, `course_categories(category_id)`, `course_audiences(audience_id)`, GIN trigram em `courses.search_text`, `enrollments(profile_id, status, last_accessed_at)`, `analytics_events(at)` (limpeza dos 90 dias) e `security_events(at)` (limpeza dos 6 meses).
 
-**Saem do MVP:** `roles`, `permissions` e `role_permissions` (seção 4) e `accounts.auth_subject` (o ID da conta é o do Better Auth). As referências a arquivos (`cover_key`, `photo_key`, `storage_key`, `thumbnail_key`) apontam para `media_objects`.
+**Saem do MVP:** `roles`, `permissions` e `role_permissions` (seção 4) e `accounts.auth_subject` (o ID da conta é o do Better Auth). **Saem na v2.4:** `lesson_videos` (a aula aponta para o vídeo por `lessons.video_id`, como o trailer) e `lessons.duration_seconds` (a duração da aula vem de uma única função, RN-10). As referências a arquivos (`cover_key`, `photo_key`, `storage_key`, `thumbnail_key`) apontam para `media_objects`.
 
 ### 9.6 Contrato: casos de uso primeiro
 
-Na v2.3, “API-first” vira **casos de uso primeiro**. A interface do sistema são funções de caso de uso no servidor (camada `src/data`, seção 9.12.1), chamadas por Server Components e Server Actions. Cada uma lê a sessão, autoriza (incluindo a posse do perfil), valida a entrada e só então acessa o banco. Uma rota HTTP só existe quando quem chama não é o React: o Better Auth, o navegador num `sendBeacon`, provedores externos, agendadores e o monitoramento. Quando houver app ou cliente externo, os mesmos casos de uso ganham rotas sem reescrita.
+Na v2.3, “API-first” vira **casos de uso primeiro**. A interface do sistema são funções de caso de uso no servidor (camada `src/data`, seção 9.12.1), chamadas por Server Components e Server Actions. Cada uma lê a sessão, autoriza (incluindo a posse do perfil), confere as regras de negócio e só então acessa o banco. A entrada chega já validada (v2.4): quem a recebe (a Server Action, a Route Handler ou o Server Component que lê `searchParams`) a valida com o schema Zod do módulo, em `src/domain/<módulo>/`, e o caso de uso recebe o tipo inferido do schema. Uma Route Handler responde 400 a uma entrada inválida; um parâmetro inválido na URL do catálogo cai no valor padrão, sem erro. As regras de lint com checagem de tipos `no-unsafe-argument` e `no-unsafe-assignment` impedem que um `any` (o resultado de `request.json()`, por exemplo) chegue ao caso de uso sem validação. Uma rota HTTP só existe quando quem chama não é o React: o Better Auth, o navegador num `sendBeacon`, provedores externos, agendadores e o monitoramento. Quando houver app ou cliente externo, os mesmos casos de uso ganham rotas sem reescrita.
 
 **Casos de uso**
 
@@ -815,17 +864,34 @@ Na v2.3, “API-first” vira **casos de uso primeiro**. A interface do sistema 
 
 #### 9.12.1 Módulos e camadas
 
-Os sete módulos (`identity`, `catalog`, `learning`, `editorial`, `home`, `analytics` e `audit`) atravessam as camadas abaixo. Elas seguem o padrão do harness de desenvolvimento, mais a camada de infraestrutura da ADR-009.
+Os sete módulos (`auth`, `catalog`, `learning`, `editorial`, `home`, `analytics` e `audit`) atravessam as camadas abaixo. Na v2.3, `auth` se chamava `identity`; o nome mudou na v2.4 para bater com `src/data/auth/`, onde a skill `auth-identity` põe a sessão, os perfis e o PIN. Elas seguem o padrão do harness de desenvolvimento, mais a camada de infraestrutura da ADR-009.
 
 | Camada | Pasta | Contém |
 | --- | --- | --- |
-| Modelo | `src/domain/<módulo>/` | Tipos e regras puras: conclusão (RN-03), formato (RN-08), totais (RN-10), restrição infantil (RN-04) e a política `can()`. Sem `next/*` |
+| Modelo | `src/domain/<módulo>/` | Tipos e regras puras: conclusão (RN-03), formato (RN-08), totais (RN-10), restrição infantil (RN-04), a política `can()` e os schemas Zod de entrada, que o formulário no cliente também usa. Sem `next/*` |
 | Dados | `src/data/<módulo>/` | Casos de uso (seção 9.6), consultas Drizzle, checagem de sessão, DTOs, funções `'use cache'` e as tags (num único módulo) |
 | Ações | `src/actions/<módulo>/` | Server Actions finas, nesta ordem: sessão, autorização, validação (Zod), caso de uso, tags, resultado mínimo |
 | Composição | `src/app/` | Grupos de rota `(public)`, `(app)` e `(admin)`, mais `api/`; Server Components que chamam `src/data` e posicionam o `<Suspense>` |
 | Interface | `src/ui/<feature>/` | Componentes e hooks de cliente; nunca importam `src/data` |
 | Infraestrutura | `src/infra/<capacidade>/` | Adaptadores de provedor: `storage` (R2), `mailer` (Resend), `video` (YouTube), `telemetry` e `scheduler` |
 | Jobs | `src/jobs/` | Jobs idempotentes, chamados por `/api/jobs/{name}` |
+
+**Fronteiras entre módulos** (v2.4):
+
+- Um módulo importa outro só pela interface pública dele (o `index.ts` do módulo, em cada camada), nunca por um arquivo interno. Ficam de fora o que é compartilhado: `src/data/db` e `src/data/tags.ts`.
+- A regra é verificada pelo mesmo `no-restricted-imports` da ADR-009, que roda no CI.
+- Os imports entre módulos não formam ciclo.
+- Cada tabela tem um módulo dono, o único que escreve nela. Ler por `JOIN` continua livre: “Meus cursos”, por exemplo, junta matrículas e cursos numa consulta só.
+
+| Módulo | Escreve em |
+| --- | --- |
+| `auth` | Tabelas do Better Auth, `session_profiles`, `account_pins`, `profiles` e `consents` |
+| `editorial` | `courses`, `modules`, `lessons`, `videos`, `lesson_documents`, `attachments`, `authors`, as tabelas `course_*` (exceto `course_stats`) e `media_objects` |
+| `catalog` | Taxonomia (`categories`, `audiences`, `tags`); no mais, só lê |
+| `learning` | `enrollments`, `lesson_progress` e `saved_courses` |
+| `analytics` | `analytics_events`, `analytics_daily`, `search_misses` e `course_stats` |
+| `audit` | `audit_log` e `security_events` |
+| `home` | Nada no MVP |
 
 #### 9.12.2 Renderização e cache
 
@@ -848,7 +914,8 @@ Os sete módulos (`identity`, `catalog`, `learning`, `editorial`, `home`, `analy
 
   O MFA entra depois pelo plugin `twoFactor`, com uma migration e as telas de cadastro do autenticador.
 - **`proxy.ts`:** só a checagem otimista do cookie e o redirecionamento para o login, guardando a URL pedida (RF-AUT-07). Não consulta o banco.
-- **Autorização:** negar por padrão, com checagem em toda função de `src/data`, Server Action e rota. As consultas são filtradas pela posse (o perfil pertence à conta da sessão), para que uma checagem esquecida não vaze dados de outra conta.
+- **Autorização:** negar por padrão, com checagem em toda função de `src/data`, Server Action e rota. As consultas são filtradas pela posse (o perfil pertence à conta da sessão), para que uma checagem esquecida não vaze dados de outra conta. As respostas de recusa (404, 403 ou novo login) seguem a tabela da seção 4.
+- **IP do cliente** (v2.4): o rate limit do Better Auth lê o IP da requisição (`x-forwarded-for`) e guarda os contadores em `rate_limits`, cujas linhas vencidas ele mesmo apaga. A opção `advanced.ipAddress.disableIpTracking` desligaria também o rate limit, por isso fica desligada. Um gancho `databaseHooks.session.create.before` esvazia o IP antes de gravar a sessão. O IP completo vai só para o registro de segurança (RNF-SEG-15).
 - **PIN do titular** (RF-PRF-11): guardado como hash e pedido ao sair de um perfil infantil para um perfil padrão. Com 5 tentativas erradas, bloqueia a troca por 15 minutos.
 
 #### 9.12.4 Mídia: capas, PDFs e áudios
@@ -876,7 +943,7 @@ Os sete módulos (`identity`, `catalog`, `learning`, `editorial`, `home`, `analy
 
 | Job | Agendado por | Quando | O que faz |
 | --- | --- | --- | --- |
-| Diário (`/api/jobs/daily`) | Vercel Cron (o Hobby permite uma execução por dia) | De madrugada | Popularidade (RN-07, `course_stats`), resumo diário de analytics, limpeza dos eventos brutos com mais de 90 dias, limpeza de arquivos órfãos (RNF-DIS-06) e `revalidateTag('popular', 'max')` |
+| Diário (`/api/jobs/daily`) | Vercel Cron (o Hobby permite uma execução por dia) | De madrugada | Popularidade (RN-07, `course_stats`), resumo diário de analytics, limpeza dos eventos brutos com mais de 90 dias, limpeza do registro de segurança com mais de 6 meses (RNF-SEG-15), limpeza de arquivos órfãos (RNF-DIS-06) e `revalidateTag('popular', 'max')` |
 | Backup do banco | GitHub Actions | Toda noite e antes de cada migration | Seção 9.12.11 |
 | Relatório de capacidade | GitHub Actions | Todo dia, de manhã | Seção 9.13 |
 | Fluxos sintéticos | GitHub Actions | A cada 6 h e depois de cada deploy | RNF-OBS-07 |
@@ -897,6 +964,7 @@ Cada job grava uma linha em `job_runs` e pinga um heartbeat no Better Stack. Os 
 - **Logs e traces:** OpenTelemetry pelo `instrumentation.ts` com `@vercel/otel`, exportando por OTLP para o Axiom (30 dias). Os logs da Vercel Hobby duram só 1 h e o plano não tem log drains, por isso a aplicação envia os logs diretamente. Um logger JSON próprio, em `src/infra/telemetry`, remove e-mail, telefone, nome e tokens (RNF-OBS-01).
 - **Disponibilidade:** Better Stack, com monitores da home e de `/api/health` a cada 3 min, um heartbeat por job e uma página de status.
 - **Analytics de produto:** `analytics_events` no próprio Postgres, com o perfil pseudonimizado por HMAC (RPV-09), resumo diário e o painel do admin (RF-ADM-12).
+- **Registro de segurança** (v2.4): `security_events` no próprio Postgres, com o IP completo, consultado por SQL numa investigação (RNF-SEG-15). Os logs do Axiom não levam IP.
 
 #### 9.12.9 Ambientes, CI e deploy
 
@@ -1040,13 +1108,13 @@ Conta com verificação de e-mail e reset de senha; perfis do titular e infantis
 | Troca de provedor ou de plano | Interfaces em `src/infra`, Postgres comum e chaves em vez de URLs (ADR-009) |
 | Mais tráfego | Inventário de cotas e gatilhos de upgrade (seção 9.13) |
 
-### 10.4 Fatias de entrega (proposta)
+### 10.4 Fatias de entrega
 
-Cada fatia vira uma especificação no harness de desenvolvimento e entrega algo utilizável. A operação (backup, monitoramento e capacidade) entra na primeira fatia, porque os planos gratuitos não perdoam descuido.
+Aceitas na v2.4 (18/11/2026). Cada fatia vira uma especificação no harness de desenvolvimento e entrega algo utilizável. A operação (backup, monitoramento e capacidade) entra na primeira fatia, porque os planos gratuitos não perdoam descuido.
 
 | Fatia | Conteúdo |
 | --- | --- |
-| R0 Esqueleto e operação | Template do harness; Next.js, Drizzle, Supabase (schema `app`) e Better Auth (cadastro, verificação de e-mail, reset de senha, convite de equipe); pipeline backup → migrations → deploy; Sentry, Axiom e Better Stack; backup noturno; relatório de capacidade; regra de lint de fronteiras; Dockerfile standalone |
+| R0 Esqueleto e operação | Template do harness; Next.js, Drizzle, Supabase (schema `app`) e Better Auth (cadastro, verificação de e-mail, reset de senha, convite de equipe); registro de segurança (RNF-SEG-15); pipeline backup → migrations → deploy; Sentry, Axiom e Better Stack; backup noturno; relatório de capacidade; regras de lint de fronteiras (provedores da ADR-009 e interface pública dos módulos, seção 9.12.1) e de tipos (`no-unsafe-argument` e `no-unsafe-assignment`, seção 9.6); Dockerfile standalone |
 | R1 Vitrine | Design system com os tokens do DESIGN.md, home, catálogo, página do curso, páginas institucionais, carga por CSV, SEO e CSP |
 | R2 Aprender | Matrícula, aula em vídeo (miniatura + `VideoPlayer`), aula em PDF (pdf.js), materiais por `/media/{id}`, conclusão, progresso, Meus cursos e “Continue assistindo” |
 | R3 Família | Perfis, “Quem está assistindo?”, perfil infantil e escopo do catálogo, PIN do titular, acompanhamento do responsável e consentimentos |
@@ -1057,11 +1125,12 @@ Cada fatia vira uma especificação no harness de desenvolvimento e entrega algo
 
 1. A região gru1 está disponível para funções no plano Hobby.
 2. São Paulo está disponível no Supabase Free, e a opção “Automatically expose new tables” pode ser desmarcada na criação.
-3. As tabelas do Better Auth funcionam no schema `app`, o plugin `admin` aceita mais de um papel por conta, e o registro de IP na sessão pode ser desligado.
+3. As tabelas do Better Auth funcionam no schema `app`; o plugin `admin` aceita mais de um papel por conta; o gancho `databaseHooks.session.create.before` deixa a sessão sem IP, e o rate limit continua ativo atrás da Vercel, lendo o IP do cliente no `x-forwarded-for` (v2.4).
 4. `vercel billing usage --json` funciona no Hobby com um token e mostra as métricas do inventário.
 5. As consultas GraphQL do R2 devolvem armazenamento e operações por bucket.
 6. O repositório público tem ativos: ruleset da `main` (PR obrigatório e CI verde), varredura de segredos com bloqueio no push, CodeQL, Dependabot e relato privado de vulnerabilidades (RNF-SEG-13).
 7. Backup e restauração funcionam de ponta a ponta, do Supabase para um Postgres limpo.
+8. Os ganchos do Better Auth capturam, para o registro de segurança, o login com falha e o bloqueio por rate limit (429), com o IP do cliente (RNF-SEG-15, v2.4).
 
 ## 11. Riscos
 
@@ -1105,7 +1174,7 @@ Cada fatia vira uma especificação no harness de desenvolvimento e entrega algo
 | DP-08 | Acesso de matriculados a cursos arquivados (RN-01) | Mantém acesso | Produto |
 | DP-09 | Região e provedores (autenticação, banco, storage, e-mail) | Decidido em 17/11/2026: Vercel com funções em gru1, Supabase São Paulo (só Postgres), Cloudflare R2, Resend e Better Auth na aplicação (ADR-007 e 008) | Tecnologia |
 | DP-10 | Encarregado (DPO) designado e RIPD elaborado | Antes do lançamento | Direção e jurídico |
-| DP-11 | Retenção de contas inativas e de logs | 24 meses para contas inativas; logs por 30 dias (limite do plano gratuito do Axiom; o arquivamento por 90 dias sai do MVP) | Jurídico e Tecnologia |
+| DP-11 | Retenção de contas inativas e de logs | 24 meses para contas inativas; logs por 30 dias (limite do plano gratuito do Axiom; o arquivamento por 90 dias sai do MVP). Registro de segurança, com IP (RNF-SEG-15, v2.4): 6 meses, o prazo de guarda de registros de acesso do Marco Civil da Internet (art. 15); confirmar se o artigo, que trata de provedor com fins econômicos, se aplica à igreja, e se os eventos de uma conta excluída podem seguir até o fim do prazo | Jurídico e Tecnologia |
 | DP-12 | Metas numéricas dos KPIs | Após 4 semanas de baseline | Produto |
 | DP-13 | PIN do titular para sair do perfil infantil (RF-PRF-11). Sem PIN, a criança pode trocar para o perfil do titular | Decidido em 17/11/2026: PIN no MVP. É o sistema de bloqueio que o Decreto 12.880/2026 pede para dispensar a aferição de idade (alerta 1.2); o jurídico confirma o enquadramento | Produto e jurídico |
 | DP-14 | Edição de curso publicado (RN-05) | Decidido em 17/11/2026: nada muda no MVP. O curso publicado segue bloqueado (o admin devolve a rascunho, o instrutor edita e reenvia). A correção editorial de textos sem despublicar fica para depois | Produto e conteúdo |
@@ -1221,3 +1290,10 @@ Cotas, preços e comportamentos dos provedores foram pesquisados em 17/11/2026 e
 - **Observabilidade:** [Axiom: plano gratuito](https://agentdeals.dev/vendor/axiom) · [Better Stack: plano gratuito](https://costbench.com/software/log-management/better-stack/free-plan/)
 - **ECA Digital e SEO:** [Trench Rossi](https://www.trenchrossi.com/en/legal-alerts/brazil-regulates-the-children-and-adolescents-online-safety-act-digital-eca) · [Chambers](https://chambers.com/articles/eca-digital-é-regulamentado-e-anpd-publica-orientações-sobre-verificação-etária) · [ANPD](https://www.gov.br/anpd/pt-br/assuntos/eca-digital/eca-digital-english) · [Google: simplificação dos resultados (jun/2025)](https://developers.google.com/search/blog/2025/06/simplifying-search-results)
 - **Vídeo e PDF:** [YouTube sem cookies (Stefan Judis)](https://www.stefanjudis.com/blog/the-lie-of-youtubes-privacy-enhanced-embed-mode) · [anúncios em canais não monetizados](https://subscribr.ai/youtube-strategy/youtube-ads-on-non-monetized-channels-policy) · [PDF no iOS (WebKit 253671)](https://onbugs.webkit.org/show_bug.cgi?id=253671)
+
+## 15. Fontes da v2.4
+
+Consultadas em 18/11/2026.
+
+- **Better Auth 1.7.15 (código-fonte):** [rate limiter: sem IP e com `disableIpTracking`, o limite não se aplica](https://github.com/better-auth/better-auth/blob/v1.7.15/packages/better-auth/src/api/rate-limiter/index.ts) · [`getIP`: devolve `null` com `disableIpTracking`](https://github.com/better-auth/better-auth/blob/v1.7.15/packages/core/src/utils/ip.ts) · [`createSession`: grava o IP pelo gancho `create.before`](https://github.com/better-auth/better-auth/blob/v1.7.15/packages/better-auth/src/db/internal-adapter.ts) · [opções `advanced.ipAddress`](https://github.com/better-auth/better-auth/blob/v1.7.15/docs/content/docs/reference/options.mdx)
+- **Marco Civil da Internet:** [Lei 12.965/2014, art. 15 (guarda de registros de acesso a aplicações por 6 meses)](https://www.planalto.gov.br/ccivil_03/_ato2011-2014/2014/lei/l12965.htm)
