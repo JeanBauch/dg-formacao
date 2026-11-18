@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { expect, test } from "vitest";
-import Home from "./page";
+import Home from "@/app/page";
 
 test("the home page renders its main heading", () => {
   render(<Home />);
