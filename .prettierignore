@@ -3,5 +3,5 @@ pnpm-lock.yaml
 AGENTS.md
 # managed by claude-sdd-harness (apply-template)
 .claude/
-# frozen copy of the requirements; must stay identical to the original
+# requirements keep unpadded tables on purpose; Prettier would realign every row
 docs/requisitos/
