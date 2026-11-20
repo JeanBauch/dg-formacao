@@ -69,6 +69,14 @@ _Evitar_: banimento, bloqueio
 **Ação sensível**:
 Ação de equipe que exige login recente: convidar ou suspender conta, mudar papel, aprovar ou arquivar curso.
 
+**Aceite**:
+Ato de aceitar os Termos de Uso e a Política de Privacidade, registrado com a versão e a data de cada documento e sem IP. Acontece no cadastro e, na conta de equipe, ao definir a senha do convite. Pendente: o texto e a base legal, DP-04.
+_No código_: `consents`.
+
+**Declaração de maioridade**:
+Declaração do titular, no cadastro, de ter 18 anos ou mais. Registra a responsabilidade do titular, mas não verifica a idade. Não é a declaração do responsável, que é de outro momento (criar o primeiro perfil infantil). Pendente: DP-04.
+_No código_: `consents`.
+
 ### Perfis
 
 **Perfil**:

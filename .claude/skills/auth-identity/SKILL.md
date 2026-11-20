@@ -53,3 +53,6 @@ Sign-up, sign-in, password reset and e-mail verification forms use the Better Au
 - `databaseHooks.user.create.after` runs in the sign-up request, so the primary profile and the consent rows can be written there.
 - An after-hook on `/sign-in/email` can reach and revoke the session it just created (STAFF.md).
 - The rate-limit path names in 1.7: `/sign-in/email`, `/sign-up/email`, `/request-password-reset` and `/send-verification-email`.
+- U10: with the Drizzle adapter's transaction on, the after-hook on account creation runs after the account's commit, outside its transaction, and does not run when the account write rolls back.
+- U11: `disabledPaths` is checked only by the HTTP router, so the admin plugin's permission check, called by the server, still works with its HTTP route disabled (CONFIG.md, STAFF.md).
+- U12: Better Auth deletes the expired rate-limit rows in the database. The 1.5 release notes mention the automatic cleanup only for in-memory storage, so read the 1.7.15 code. The daily job deletes them either way (CONFIG.md).
