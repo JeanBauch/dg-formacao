@@ -1,6 +1,6 @@
-# DG Formação (Plataforma de Cursos Evangélicos) — Requisitos v2.4
+# DG Formação (Plataforma de Cursos Evangélicos) — Requisitos v2.5
 
-Versão 2.4 · 18/11/2026 · Rascunho para validação · Evolui a v2.3 com as decisões da descoberta (F1) e do desenho do sistema (F4): ADRs em `docs/adr/`, glossário em `GLOSSARY.md` e o que a v2.3 deixou como proposto. O caminho deste documento é fixo (`docs/requisitos/requisitos.md`); a versão fica aqui no cabeçalho
+Versão 2.5 · 20/11/2026 · Rascunho para validação · Evolui a v2.4 com os desvios que a spec R0-A (identidade e dados) decidiu: seção 1.7. As decisões da v2.4 (descoberta F1 e desenho do sistema F4, ADRs em `docs/adr/`, glossário em `GLOSSARY.md`) continuam valendo. O caminho deste documento é fixo (`docs/requisitos/requisitos.md`); a versão fica aqui no cabeçalho
 
 ## 1. Controle do documento
 
@@ -112,6 +112,21 @@ A v2.4 registra a descoberta (F1) e o desenho do sistema (F4) feitos no reposit�
 | Validação na entrada: quem recebe a entrada valida com o schema de `src/domain`; o caso de uso recebe a entrada já validada; lint de tipos contra `any` | Seções 9.6, 9.12.1 e 10.4 (R0) | Aceito |
 | Vocabulário: Titular e Responsável separados; "editor do curso" no lugar de "instrutor dono" | Seção 3, RN-01, RF-ADM-01, RF-ADM-07, glossário | Aceito |
 
+### 1.7 Alterações da v2.5
+
+A v2.5 traz para este documento o que a spec R0-A (identidade e dados) decidiu diferente da v2.4 ou que faltava nela. As mesmas decisões também ajustam o `GLOSSARY.md` (termos **Aceite** e **Declaração de maioridade**), as skills `auth-identity` e `data-layer`, e a regra do `.env.example` no `CLAUDE.md`, no `.gitignore` e no hook de proteção de caminhos. Os IDs continuam sem renumeração. Os ajustes das seções 9.12.9 e 9.12.11 ficam para a spec B.
+
+| Mudança | Requisitos afetados | Status |
+| --- | --- | --- |
+| Consentimentos sem `ip_hash`: o IP fica só no registro de segurança. Três tipos de documento no R0 (Termos de Uso, Política de Privacidade e declaração de maioridade); a declaração do responsável entra na R3 | Modelo de dados (`consents`), RNF-SEG-15, DP-04 | Aceito; o IP volta se o jurídico responder sim à pergunta da DP-04 |
+| Registro de segurança com tipo de evento em enum fechado (oito valores), IP em `inet`, uma linha por minuto (rota, contador, primeiro e último horário, `dedupe_key` com índice único) e user agent de até 256 caracteres | Modelo de dados (`security_events`) | Aceito |
+| Todo evento do registro de segurança é agregado por minuto, com teto diário de linhas novas e transbordo; no pior caso, cerca de 100 MB em 6 meses | RNF-SEG-15 | Aceito |
+| O job diário apaga as linhas vencidas de `rate_limits`; a limpeza automática do Better Auth fica a confirmar | Seções 9.12.3 e 9.12.6 | Aceito; limpeza do Better Auth a confirmar (U12) |
+| O diff do audit log guarda inteiros os campos de até 256 caracteres; campo mais longo entra como tamanho e hash SHA-256 | RNF-OBS-10 | Aceito |
+| A redefinição de senha funciona com o e-mail não verificado, e concluí-la marca o e-mail como verificado. A verificação continua obrigatória para criar perfil infantil (R3) | RF-AUT-02 | Aceito |
+| O primeiro admin nasce pelo comando de bootstrap, com a mesma escrita do convite; as demais contas de equipe, só por convite | Seção 4, RF-AUT-08 | Aceito |
+| O R0 vira duas specs: a A (identidade e dados) e a B (operação e cadeia de suprimentos) | Seção 10.4 | Aceito |
+
 ## 2. Visão, escopo e premissas
 
 ### 2.1 Visão
@@ -177,7 +192,7 @@ Desde a v2.4, o glossário vive no `GLOSSARY.md`, na raiz do repositório, com o
 
 ## 4. Papéis e permissões (RBAC)
 
-Papéis guardados: **Instrutor** e **Admin**, na Conta. Uma conta com ao menos um deles é uma **conta de equipe**, criada só por convite do admin, e pode acumular os dois. **Visitante** (sem sessão) e **Aluno** (quem estuda por um perfil) aparecem na tabela abaixo, mas não são papéis guardados; no código, a conta sem papel de equipe tem o valor padrão `user` do plugin `admin`. As permissões são chaves (`course:create`, `course:update:own`, `course:publish`, `course:review`, `taxonomy:manage`, `user:manage`) verificadas no servidor. O papel de cada conta fica no banco, e o mapa de papel para permissões fica no código, numa função pura `can(ator, permissão, recurso)` testada como matriz (aceito na v2.4). Com papéis fixos, tabelas de permissões não se pagam no MVP; elas voltam por uma migration de expansão se o admin precisar criar papéis.
+Papéis guardados: **Instrutor** e **Admin**, na Conta. Uma conta com ao menos um deles é uma **conta de equipe**, criada por convite do admin (o primeiro admin nasce pelo comando de bootstrap, com a mesma escrita do convite), e pode acumular os dois. **Visitante** (sem sessão) e **Aluno** (quem estuda por um perfil) aparecem na tabela abaixo, mas não são papéis guardados; no código, a conta sem papel de equipe tem o valor padrão `user` do plugin `admin`. As permissões são chaves (`course:create`, `course:update:own`, `course:publish`, `course:review`, `taxonomy:manage`, `user:manage`) verificadas no servidor. O papel de cada conta fica no banco, e o mapa de papel para permissões fica no código, numa função pura `can(ator, permissão, recurso)` testada como matriz (aceito na v2.4). Com papéis fixos, tabelas de permissões não se pagam no MVP; elas voltam por uma migration de expansão se o admin precisar criar papéis.
 
 **Conta de equipe não tem perfil infantil** (v2.4). A permissão é da conta, não do perfil: uma criança num perfil infantil, na sessão de um instrutor, alcançaria o backoffice. Por isso uma conta com papel de equipe não cria perfil infantil, e uma conta que já tem perfil infantil não recebe papel. Quem é da equipe e tem filhos usa duas contas, com e-mails diferentes (RF-AUT-08 e RF-PRF-02).
 
@@ -215,13 +230,13 @@ Prioridades: **MVP**, **Pós-MVP** (até cerca de 6 meses) e **Futuro** (até 24
 | ID | Requisito | Prioridade |
 | --- | --- | --- |
 | RF-AUT-01 | Cadastro do titular com nome completo, e-mail e senha (mínimo de 8 caracteres, com indicador de força), mais declaração de ter 18 anos ou mais e aceite de Termos e Política de Privacidade (versão e data registradas). O protótipo não tem a declaração de maioridade. A declaração registra a responsabilidade do titular, mas não conta como verificação de idade (alerta 1.2): a proteção dos menores vem do perfil infantil (RN-04) e do PIN (DP-13). Validar com o jurídico (DP-04) | MVP |
-| RF-AUT-02 | Verificação de e-mail por link com expiração. Obrigatória antes de criar perfil infantil e para recuperar senha | MVP |
+| RF-AUT-02 | Verificação de e-mail por link com expiração. Obrigatória antes de criar perfil infantil. A redefinição de senha não a exige e, ao ser concluída pelo link, marca o e-mail como verificado (o convite de equipe depende disso) | MVP |
 | RF-AUT-03 | Login por e-mail e senha, com mostrar senha e “Lembrar de mim” (sessão prolongada), sessão com expiração e logout | MVP |
 | RF-AUT-04 | Esqueci minha senha: link de uso único, expiração curta (30 min), resposta idêntica exista ou não a conta, com rate limit | MVP |
 | RF-AUT-05 | Política mínima de senha e bloqueio progressivo por tentativas falhas | MVP |
 | RF-AUT-06 | Conteúdo didático exige login; home, catálogo, página do curso e páginas institucionais são públicos. As rotas de aula e de conta são protegidas no servidor (no protótipo nenhuma rota é protegida) | MVP |
 | RF-AUT-07 | Após o login, retornar ao conteúdo originalmente solicitado | MVP |
-| RF-AUT-08 | Contas de equipe criadas por convite do admin. O MFA (TOTP) para contas de equipe saiu do MVP na v2.3 por custo de implementação; no lugar, valem as proteções da seção 9.12.3 (senha mais forte, sessão curta e confirmação de senha em ações sensíveis). O convite cria sempre uma conta nova, e conta de equipe não tem perfil infantil (seção 4, v2.4) | MVP (convite); Pós-MVP (MFA) |
+| RF-AUT-08 | Contas de equipe criadas por convite do admin; o primeiro admin nasce pelo comando de bootstrap, com a mesma escrita do convite. O MFA (TOTP) para contas de equipe saiu do MVP na v2.3 por custo de implementação; no lugar, valem as proteções da seção 9.12.3 (senha mais forte, sessão curta e confirmação de senha em ações sensíveis). O convite cria sempre uma conta nova, e conta de equipe não tem perfil infantil (seção 4, v2.4) | MVP (convite); Pós-MVP (MFA) |
 | RF-AUT-09 | Exclusão de conta e de perfis a pedido do titular, atendida manualmente pelo encarregado dentro do prazo legal; sem fluxo self-service no MVP (RN-15) | MVP |
 | RF-AUT-10 | Exportação de dados do titular. No MVP, atendimento manual pelo canal do encarregado | Pós-MVP (automatizar) |
 | RF-AUT-11 | Login social (Google primeiro, depois outros), com vínculo de identidade somente por e-mail verificado. O botão “Continuar com Google” do protótipo fica oculto no MVP | Pós-MVP |
@@ -456,7 +471,7 @@ Todos os itens desta seção fazem parte do MVP, conforme a decisão D-07. Os va
 | RNF-OBS-07 | **Monitoramento sintético:** disponibilidade a cada 3 min (home e `/api/health`, pelo Better Stack) e fluxos críticos completos com Playwright no GitHub Actions a cada 6 h e após cada deploy: home, login, abrir curso e marcar aula concluída em produção, com uma conta sintética excluída das métricas, e recuperação de senha no staging. Uma queda total aparece em até 3 min; um defeito só num fluxo pode levar até 6 h para aparecer |
 | RNF-OBS-08 | **Dashboards:** saúde do serviço e jobs (Axiom), funil de produto (painel do admin, RF-ADM-12), vídeo, e capacidade e custo (relatório de capacidade, RNF-CAP) |
 | RNF-OBS-09 | **Runbooks** para os incidentes mais prováveis (banco lento, falha de e-mail, provedor de autenticação fora, vídeo quebrado, deploy com erro) e post-mortem sem culpados para incidentes relevantes |
-| RNF-OBS-10 | **Audit log** append-only para ações do backoffice e para acessos do admin a dados de alunos |
+| RNF-OBS-10 | **Audit log** append-only para ações do backoffice e para acessos do admin a dados de alunos. O diff guarda inteiros os campos de até 256 caracteres; um campo mais longo entra como tamanho e hash SHA-256 |
 
 ### 8.4 Analytics de produto
 
@@ -496,7 +511,7 @@ Coleta first-party, sem SDK de publicidade, com eventos de schema versionado e i
 | RNF-SEG-12 | **Defesas contra XSS além da CSP:** `dangerouslySetInnerHTML` proibido (erro de lint); textos ricos (descrição do curso, “O que você vai aprender”) em Markdown restrito, renderizado por componentes React, sem HTML cru; links aceitos só com `https:` ou caminho relativo; nenhum script de terceiros (RPV-15) |
 | RNF-SEG-13 | **Código e repositório público** (DP-24): ruleset na `main` (PR obrigatório, CI verde, sem force push); varredura de segredos com bloqueio no push, mais gitleaks no CI; CodeQL em todo PR; Dependabot; relato privado de vulnerabilidades (`SECURITY.md`). Workflows com `permissions` mínimas, actions fixadas por SHA e sem `pull_request_target`. Logs e resumos de job nunca imprimem dados pessoais nem segredos, e issues e PRs não descrevem vulnerabilidades ainda abertas |
 | RNF-SEG-14 | **Dados:** conexões ao banco só com TLS; dados reais de produção nunca vão para desenvolvimento, CI ou staging (RNF-QUA-02), nem para cópias locais fora do runbook de restauração; as chaves de cifra (backups, HMAC do analytics, segredo do Better Auth) são separadas entre si e ficam fora do banco e do repositório |
-| RNF-SEG-15 | **Registro de segurança** (v2.4). Uma tabela própria no Postgres (`security_events`) guarda, para investigar incidentes e ataques: login com sucesso e com falha, pedido e conclusão de reset de senha, bloqueio por rate limit (uma vez por janela de contagem, para que um ataque não esgote a cota do banco), bloqueio do PIN, login de conta de equipe e recusas de autorização vindas de sessão autenticada (seção 4). Cada linha tem horário, evento, conta (se houver), IP completo e user agent. O IP completo permite bloquear um atacante no firewall da Vercel ou da Cloudflare; um hash só permitiria correlacionar. É o único lugar que guarda o IP: a sessão, os logs da aplicação e a interface não o têm. Ninguém o lê pela interface; numa investigação, o responsável técnico consulta por SQL, com um papel só de leitura. Retenção de 6 meses, apagada pelo job diário, a confirmar pelo jurídico (DP-11); os eventos de uma conta excluída seguem o mesmo prazo. Entra no RIPD (RPV-11) |
+| RNF-SEG-15 | **Registro de segurança** (v2.4). Uma tabela própria no Postgres (`security_events`) guarda, para investigar incidentes e ataques: login com sucesso e com falha, pedido e conclusão de reset de senha, bloqueio por rate limit, bloqueio do PIN, login de conta de equipe e recusas de autorização vindas de sessão autenticada (seção 4). Cada linha tem horário, evento, conta (se houver), IP completo e user agent. Todo evento é agregado por minuto: uma linha por evento, conta, faixa de IP, rota e minuto, com contador e primeiro e último horário. Há um teto diário de linhas novas, com transbordo sem IP, para que um ataque não esgote a cota do banco. No pior caso, o registro ocupa cerca de 100 MB em 6 meses. O IP completo permite bloquear um atacante no firewall da Vercel ou da Cloudflare; um hash só permitiria correlacionar. É o único lugar que guarda o IP: a sessão, os logs da aplicação e a interface não o têm. Ninguém o lê pela interface; numa investigação, o responsável técnico consulta por SQL, com um papel só de leitura. Retenção de 6 meses, apagada pelo job diário, a confirmar pelo jurídico (DP-11); os eventos de uma conta excluída seguem o mesmo prazo. Entra no RIPD (RPV-11) |
 
 ### 8.6 Acessibilidade e usabilidade
 
@@ -645,7 +660,9 @@ verifications(id, identifier, value, expires_at)                  -- Better Auth
 rate_limits(key, count, last_request)                             -- rate limit do Better Auth no banco (RNF-SEG-03)
 account_pins(account_id, pin_hash, failed_attempts, locked_until) -- PIN do titular (RF-PRF-11, DP-13)
 profiles(id, account_id, display_name, avatar_key, kind[standard|child], is_primary, created_at, deleted_at)
-consents(account_id, profile_id NULL, document, version, accepted_at, ip_hash)   -- inclui a declaração do responsável (RPV-04)
+consents(account_id, profile_id NULL, document, version, accepted_at)   -- sem IP nem hash de IP: o IP fica só em security_events
+                                                                  -- R0: Termos de Uso, Política de Privacidade e declaração de maioridade;
+                                                                  -- a declaração do responsável entra na R3 (RPV-04)
 
 -- Taxonomia
 categories(id, slug, name, position, is_active)
@@ -700,9 +717,16 @@ analytics_events(id, name, schema_version, profile_hash, course_id NULL, lesson_
 analytics_daily(day, name, course_id NULL, count)       -- resumo diário, mantido (RNF-DAD-05)
 search_misses(day, term_normalized, count)              -- buscas sem resultado, sem vínculo ao perfil (RF-CAT-10)
 job_runs(job, started_at, finished_at, status, details jsonb)   -- job diário, backups, relatório de capacidade
-security_events(id, at, event, account_id NULL, ip, user_agent, details jsonb)
+security_events(id, at, last_at, event, account_id NULL, ip inet NULL, user_agent varchar(256), route,
+                details jsonb, count, dedupe_key UNIQUE)
                                                         -- registro de segurança, único lugar com IP; 6 meses
                                                         -- (RNF-SEG-15, retenção a confirmar na DP-11)
+                                                        -- event: enum fechado (sign_in_succeeded, sign_in_failed,
+                                                        -- staff_sign_in_succeeded, password_reset_requested,
+                                                        -- password_reset_completed, rate_limited, account_locked,
+                                                        -- access_denied); o bloqueio do PIN entra na R3
+                                                        -- uma linha por minuto (UTC): at é o primeiro horário, last_at o último,
+                                                        -- count soma as ocorrências; dedupe_key é única
 
 -- Pós-MVP: MFA das contas de equipe (plugin twoFactor do Better Auth)
 two_factors(account_id, secret, backup_codes)           -- guardados cifrados; accounts ganha two_factor_enabled
@@ -915,7 +939,7 @@ Os sete módulos (`auth`, `catalog`, `learning`, `editorial`, `home`, `analytics
   O MFA entra depois pelo plugin `twoFactor`, com uma migration e as telas de cadastro do autenticador.
 - **`proxy.ts`:** só a checagem otimista do cookie e o redirecionamento para o login, guardando a URL pedida (RF-AUT-07). Não consulta o banco.
 - **Autorização:** negar por padrão, com checagem em toda função de `src/data`, Server Action e rota. As consultas são filtradas pela posse (o perfil pertence à conta da sessão), para que uma checagem esquecida não vaze dados de outra conta. As respostas de recusa (404, 403 ou novo login) seguem a tabela da seção 4.
-- **IP do cliente** (v2.4): o rate limit do Better Auth lê o IP da requisição (`x-forwarded-for`) e guarda os contadores em `rate_limits`, cujas linhas vencidas ele mesmo apaga. A opção `advanced.ipAddress.disableIpTracking` desligaria também o rate limit, por isso fica desligada. Um gancho `databaseHooks.session.create.before` esvazia o IP antes de gravar a sessão. O IP completo vai só para o registro de segurança (RNF-SEG-15).
+- **IP do cliente** (v2.4): o rate limit do Better Auth lê o IP da requisição (`x-forwarded-for`) e guarda os contadores em `rate_limits`. Que o Better Auth apague sozinho as linhas vencidas está a confirmar (item U12 da skill `auth-identity`); o job diário as apaga de qualquer forma (seção 9.12.6). A opção `advanced.ipAddress.disableIpTracking` desligaria também o rate limit, por isso fica desligada. Um gancho `databaseHooks.session.create.before` esvazia o IP antes de gravar a sessão. O IP completo vai só para o registro de segurança (RNF-SEG-15).
 - **PIN do titular** (RF-PRF-11): guardado como hash e pedido ao sair de um perfil infantil para um perfil padrão. Com 5 tentativas erradas, bloqueia a troca por 15 minutos.
 
 #### 9.12.4 Mídia: capas, PDFs e áudios
@@ -943,7 +967,7 @@ Os sete módulos (`auth`, `catalog`, `learning`, `editorial`, `home`, `analytics
 
 | Job | Agendado por | Quando | O que faz |
 | --- | --- | --- | --- |
-| Diário (`/api/jobs/daily`) | Vercel Cron (o Hobby permite uma execução por dia) | De madrugada | Popularidade (RN-07, `course_stats`), resumo diário de analytics, limpeza dos eventos brutos com mais de 90 dias, limpeza do registro de segurança com mais de 6 meses (RNF-SEG-15), limpeza de arquivos órfãos (RNF-DIS-06) e `revalidateTag('popular', 'max')` |
+| Diário (`/api/jobs/daily`) | Vercel Cron (o Hobby permite uma execução por dia) | De madrugada | Popularidade (RN-07, `course_stats`), resumo diário de analytics, limpeza dos eventos brutos com mais de 90 dias, limpeza do registro de segurança com mais de 6 meses (RNF-SEG-15), limpeza das linhas vencidas de `rate_limits` (última requisição mais antiga que a maior janela das regras), limpeza de arquivos órfãos (RNF-DIS-06) e `revalidateTag('popular', 'max')` |
 | Backup do banco | GitHub Actions | Toda noite e antes de cada migration | Seção 9.12.11 |
 | Relatório de capacidade | GitHub Actions | Todo dia, de manhã | Seção 9.13 |
 | Fluxos sintéticos | GitHub Actions | A cada 6 h e depois de cada deploy | RNF-OBS-07 |
@@ -1110,7 +1134,7 @@ Conta com verificação de e-mail e reset de senha; perfis do titular e infantis
 
 ### 10.4 Fatias de entrega
 
-Aceitas na v2.4 (18/11/2026). Cada fatia vira uma especificação no harness de desenvolvimento e entrega algo utilizável. A operação (backup, monitoramento e capacidade) entra na primeira fatia, porque os planos gratuitos não perdoam descuido.
+Aceitas na v2.4 (18/11/2026). Cada fatia vira uma especificação no harness de desenvolvimento e entrega algo utilizável; o R0 vira duas: a A (identidade e dados) e a B (operação e cadeia de suprimentos). A operação (backup, monitoramento e capacidade) entra na primeira fatia, porque os planos gratuitos não perdoam descuido.
 
 | Fatia | Conteúdo |
 | --- | --- |

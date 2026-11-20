@@ -10,7 +10,7 @@ import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:pat
 import { gitRoot, readStdinJson } from './lib.mjs'
 
 const ENV_FILE = /^\.env(\..+)?$/
-const ENV_ALLOWED = new Set(['.env.example', '.env.sample', '.env.template'])
+const ENV_ALLOWED = new Set(['.env.example'])
 const LOCKFILES = new Set(['pnpm-lock.yaml', 'package-lock.json', 'yarn.lock', 'bun.lock', 'bun.lockb', 'npm-shrinkwrap.json'])
 const RULE_FILES = new Set(['CLAUDE.md', 'AGENTS.md', 'CODING_STANDARDS.md'])
 const TICKET_BRANCH = /^(feat|fix)\//

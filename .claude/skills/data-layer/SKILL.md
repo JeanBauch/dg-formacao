@@ -10,7 +10,7 @@ The decisions behind these rules are in ADR-007 and ADR-009 (`docs/adr/`), and t
 ## Plain Postgres
 
 - Every table, enum and index lives in the `app` schema. Declare `export const app = pgSchema('app')`, then `app.table(...)` and `app.enum(...)`. Better Auth's tables are generated into the same schema (skill `auth-identity`).
-- The database is plain Postgres reached only by this app. Access control is enforced in `src/data`, so the schema carries grants for the app role and no RLS policies. Supabase is a host only: its client libraries, Auth, Storage, Realtime and Data API stay out of the code.
+- The database is plain Postgres reached only by this app. Access control is enforced in `src/data`, with no RLS policies. The database adds a second barrier through three roles (app, migrations and read-only), which the roles script sets up after the migrations, not the schema (see [MIGRATIONS.md](MIGRATIONS.md)). Supabase is a host only: its client libraries, Auth, Storage, Realtime and Data API stay out of the code.
 - Extensions live in the `extensions` schema, created by the first custom migration. Reference them schema-qualified (`extensions.gin_trgm_ops`) so no query depends on `search_path`.
 
 ## Connections
@@ -52,7 +52,11 @@ Follow [MIGRATIONS.md](MIGRATIONS.md) for every schema change. Each migration ex
 ## Tests
 
 - Data functions run against a real Postgres 17: the CI service container, or Docker locally. Drizzle is never mocked.
-- Each test file starts from a known state: migrations run once per test run, then the file truncates the `app` tables it touches.
+- The tests that hit the database run in their own Vitest project with `fileParallelism: false`, which applies per project. The domain and lint projects use no database and may run alongside it.
+- That project's `globalSetup` runs part 1 of the roles script (with the container's superuser), the migrations and part 2, the same scripts as production. They are tested on every run, and the migrations run once per run.
+- The tests use their own database in the same container, apart from the development one. Its URL is fixed in the test config with the container's fictitious credentials, and is the same in CI, so there is no test env file.
+- The code under test connects as the app role, so the refusals are real. Cleanup between files uses the migrations role, because the app role cannot delete audit rows. Each file truncates the `app` tables it uses, the rate-limit table included.
+- Each test uses its own simulated IP, from a helper over the ranges reserved for documentation (RFC 5737), which are valid in `inet`. Rate-limit and lockout tests control the IP on purpose.
 - Authorization tests follow RBAC.md (owner, another user, anonymous). Add a child profile wherever the catalog scope applies.
 - Seed and fixture data are fictitious (RNF-QUA-02).
 
