@@ -2,8 +2,11 @@
 import { resolve } from "node:path";
 import { ESLint } from "eslint";
 import ts from "typescript";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { baseConfig } from "../../eslint.base.mjs";
+
+// Every test runs type-aware ESLint, which is slow on a cold CI runner.
+vi.setConfig({ testTimeout: 30_000 });
 
 // Seam 4: ESLint over example files. The examples live in lint-examples/ so the
 // repository lint, typecheck and build never read them; only this test does,
@@ -26,13 +29,24 @@ async function lintExample(path: string) {
   }));
 }
 
+async function lintErrorTexts(path: string) {
+  const [result] = await eslint.lintFiles([path]);
+  return result.messages.map((message) => message.message);
+}
+
 describe("provider SDKs stay in the infrastructure layer (A6.1)", () => {
   test("importing a provider package outside src/infra is an error", async () => {
     const messages = await lintExample("src/data/auth/provider-import.bad.ts");
 
     expect(messages).toEqual(
-      Array(5).fill({ ruleId: "no-restricted-imports", severity: 2 }),
+      Array(6).fill({ ruleId: "no-restricted-imports", severity: 2 }),
     );
+  });
+
+  test("a local file or folder named like a provider package passes", async () => {
+    const messages = await lintExample("src/data/auth/local-resend.good.ts");
+
+    expect(messages).toEqual([]);
   });
 
   test("the same imports inside src/infra pass", async () => {
@@ -50,6 +64,23 @@ describe("the domain layer does not know Next.js (A6.2)", () => {
 
     expect(messages).toEqual([
       { ruleId: "no-restricted-imports", severity: 2 },
+    ]);
+  });
+
+  test("a local file or folder named next passes", async () => {
+    const messages = await lintExample("src/domain/catalog/local-next.good.ts");
+
+    expect(messages).toEqual([]);
+  });
+
+  test("a module file in src/domain keeps the ban and the module rule together", async () => {
+    const texts = await lintErrorTexts(
+      "src/domain/auth/next-and-internal.bad.ts",
+    );
+
+    expect(texts).toEqual([
+      expect.stringContaining("src/domain/** is pure"),
+      expect.stringContaining("public interface"),
     ]);
   });
 
@@ -77,6 +108,36 @@ describe("a module imports another only through its public interface (A6.3)", ()
     expect(messages).toEqual([
       { ruleId: "no-restricted-imports", severity: 2 },
     ]);
+  });
+
+  test("a relative import of another module from the actions layer is an error", async () => {
+    const messages = await lintExample(
+      "src/actions/auth/relative-internal-import.bad.ts",
+    );
+
+    expect(messages).toEqual([
+      { ruleId: "no-restricted-imports", severity: 2 },
+    ]);
+  });
+
+  test("a folder named like a module outside the module layers passes", async () => {
+    const messages = await lintExample(
+      "src/data/auth/ui-folder-import.good.ts",
+    );
+
+    expect(messages).toEqual([]);
+  });
+
+  test("the explicit index of a module passes in the relative and alias forms", async () => {
+    const messages = await lintExample("src/data/auth/index-import.good.ts");
+
+    expect(messages).toEqual([]);
+  });
+
+  test("a module imports its own internal files", async () => {
+    const messages = await lintExample("src/data/auth/own-internal.good.ts");
+
+    expect(messages).toEqual([]);
   });
 
   test("the public interface, the database client and the cache tags pass", async () => {

@@ -3,23 +3,18 @@ import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 import prettier from "eslint-config-prettier/flat";
 
-// ADR-009, item 2: provider SDKs live only in the infrastructure layer.
+// ADR-009, item 2: provider SDKs live only in the infrastructure layer. These
+// are anchored regexes: a bare `group` name uses gitignore semantics and would
+// also match a local file or folder called `resend`.
 const providerPackages = {
-  group: [
-    "@vercel/*",
-    "@supabase/*",
-    "resend",
-    "resend/*",
-    "@aws-sdk/*",
-    "@mux/*",
-  ],
+  regex: "^(@vercel/|@supabase/|@aws-sdk/|@mux/|resend(/|$))",
   message:
     "Provider SDKs are allowed only in src/infra/**; call the infra interface instead (ADR-009).",
 };
 
 // ADR-009, item 2: the domain layer is pure and knows no framework.
 const nextImports = {
-  group: ["next", "next/*"],
+  regex: "^next(/|$)",
   message: "src/domain/** is pure: it must not import Next.js (ADR-009).",
 };
 
@@ -37,11 +32,14 @@ const moduleLayers = ["domain", "data", "actions"];
 
 // A module reaches another one only through its public interface, the module
 // folder itself (its index.ts). The shared src/data/db and src/data/tags.ts are
-// not modules, so they are never matched. Both the alias and the relative form
-// are caught.
-function internalFilesOf(other) {
+// not modules, so they are never matched, and neither are folders that merely
+// share a module's name outside the module layers (src/ui/catalog). The index
+// is the public interface and passes. Both the alias and the relative form are
+// caught.
+function internalImportPattern(other) {
+  const layers = moduleLayers.join("|");
   return {
-    regex: `^(@/(${moduleLayers.join("|")})/|(\\.\\./)+(.*/)?)${other}/.+`,
+    regex: `^(@/(${layers})/|(\\.\\./)+((${layers})/)?)${other}/(?!index(\\.[a-z]+)?$).+`,
     message: `Import "${other}" through its public interface (the module index), not an internal file (section 9.12.1).`,
   };
 }
@@ -97,7 +95,9 @@ export function baseConfig({ tsconfig } = {}) {
         rules: restrictImports(
           providerPackages,
           ...(layer === "domain" ? [nextImports] : []),
-          ...modules.filter((other) => other !== module).map(internalFilesOf),
+          ...modules
+            .filter((other) => other !== module)
+            .map(internalImportPattern),
         ),
       })),
     ),
