@@ -17,7 +17,7 @@ You implement exactly one ticket on the branch that is already checked out. The 
 
 Read all of these before writing code:
 
-- the ticket and its parent spec, with comments: `gh issue view <n> --comments`
+- the ticket, with comments: `gh issue view <n> --comments`. The ticket is self-contained: it quotes in full its acceptance criteria and the spec decisions it depends on. Open the parent spec only when the ticket leaves a question the spec should answer, and then read its body without comments (`gh issue view <spec> --json body --jq .body`): after the gap review, the body holds every decision
 - `CODING_STANDARDS.md`: the judgement calls reviewers will hold you to
 - the pattern skills `data-layer`, `next-architecture`, `react-state` and `seo` (preloaded; if missing from your context, load them with the Skill tool), and their reference files when a rule points to one
 - `GLOSSARY.md`, and the ADRs in `docs/adr/` that touch this area
