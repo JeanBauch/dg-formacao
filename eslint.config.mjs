@@ -1,15 +1,8 @@
 import { defineConfig, globalIgnores } from "eslint/config";
-import nextVitals from "eslint-config-next/core-web-vitals";
-import nextTs from "eslint-config-next/typescript";
-import prettier from "eslint-config-prettier/flat";
+import { baseConfig } from "./eslint.base.mjs";
 
 const eslintConfig = defineConfig([
-  ...nextVitals,
-  ...nextTs,
-  // Formatting belongs to Prettier; turn off ESLint rules that would fight it.
-  prettier,
-  // RNF-SEG-12: raw HTML injection is forbidden.
-  { rules: { "react/no-danger": "error" } },
+  ...baseConfig(),
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:
@@ -17,6 +10,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Bad examples for the lint rules; only src/lint/boundaries.test.ts reads them.
+    "lint-examples/**",
   ]),
 ]);
 
