@@ -1,0 +1,70 @@
+import { z } from "zod";
+
+const hostedEnvironments = ["staging", "production"];
+const tlsModes = ["require", "verify-ca", "verify-full"];
+
+const envSchema = z
+  .object({
+    APP_ENV: z.enum(["local", "ci", "staging", "production"]),
+    SIGNUP_ENABLED: z
+      .enum(["true", "false"])
+      .transform((value) => value === "true"),
+    DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
+    MAILER_ADAPTER: z.enum(["file", "resend"]),
+    // Vercel defines it at build and run time; it only exists to refuse local and ci.
+    VERCEL: z.string().optional(),
+  })
+  .check((ctx) => {
+    const env = ctx.value;
+    const hosted = hostedEnvironments.includes(env.APP_ENV);
+
+    if (!hosted && env.VERCEL) {
+      ctx.issues.push({
+        code: "custom",
+        path: ["VERCEL"],
+        message: "must not be set when APP_ENV is local or ci",
+        input: env.VERCEL,
+      });
+    }
+
+    // A malformed URL is already reported by the field itself.
+    const urlParses = URL.canParse(env.DATABASE_URL);
+    const sslmode = urlParses
+      ? new URL(env.DATABASE_URL).searchParams.get("sslmode")
+      : null;
+    if (hosted && urlParses && !tlsModes.includes(sslmode ?? "")) {
+      ctx.issues.push({
+        code: "custom",
+        path: ["DATABASE_URL"],
+        message:
+          "must require TLS (sslmode) when APP_ENV is staging or production",
+        input: env.DATABASE_URL,
+      });
+    }
+
+    if (hosted && env.MAILER_ADAPTER === "file") {
+      ctx.issues.push({
+        code: "custom",
+        path: ["MAILER_ADAPTER"],
+        message: "the file adapter is allowed only when APP_ENV is local or ci",
+        input: env.MAILER_ADAPTER,
+      });
+    }
+  });
+
+// The names the inventory (.env.example) must list.
+export const envVariableNames = Object.keys(envSchema.shape);
+
+export type Env = z.output<typeof envSchema>;
+
+// The message lists each invalid variable by name and the reason, which never
+// carries the value: a startup log must not leak a secret.
+export function parseEnv(source: Record<string, string | undefined>): Env {
+  const result = envSchema.safeParse(source);
+  if (result.success) return result.data;
+
+  const lines = result.error.issues.map(
+    (issue) => `- ${issue.path.join(".")}: ${issue.message}`,
+  );
+  throw new Error(["Invalid environment configuration:", ...lines].join("\n"));
+}
