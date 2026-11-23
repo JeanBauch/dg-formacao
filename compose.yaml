@@ -1,0 +1,27 @@
+# Local Postgres 17 for development and the database tests. Start it with
+# `pnpm db:up`. The credentials are fictitious and the same as the CI service
+# container. The database tests create their own database in this container,
+# apart from the development one (dg_formacao).
+name: dg-formacao
+
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: dg_formacao
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    # Over TCP: while the image initialises, its temporary server listens only
+    # on the Unix socket, so a socket check would report ready too early.
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "postgres"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  postgres-data:

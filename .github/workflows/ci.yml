@@ -17,6 +17,22 @@ jobs:
   ci:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # The database tests create their own database here and migrate it from
+    # scratch on every run. Same image and fictitious credentials as compose.yaml.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: dg_formacao
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
