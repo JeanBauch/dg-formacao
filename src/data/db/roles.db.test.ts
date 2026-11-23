@@ -1,6 +1,14 @@
+import { execFile } from "node:child_process";
+import { resolve } from "node:path";
+import { promisify } from "node:util";
 import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 import { applyRolesAndMigrations } from "@/test/db/setup";
 import { connect, testDatabase } from "@/test/db/test-database";
+
+const rolesScript = resolve(
+  import.meta.dirname,
+  "../../../scripts/db-roles.mts",
+);
 
 // Running the scripts again spawns them, which takes a few seconds.
 vi.setConfig({ testTimeout: 60_000 });
@@ -76,7 +84,9 @@ async function databaseState() {
     roles: await admin`
       select rolname, rolsuper, rolinherit, rolcreaterole, rolcreatedb,
         rolcanlogin, rolreplication, rolbypassrls
-      from pg_roles where rolname like 'dg\_%' order by rolname`,
+      from pg_roles
+      where rolname in ('dg_app', 'dg_migrations', 'dg_readonly')
+      order by rolname`,
     database: await admin`
       select datacl::text from pg_database where datname = current_database()`,
     schemas: await admin`
@@ -97,10 +107,6 @@ async function databaseState() {
 }
 
 describe("the roles script (A1.11)", () => {
-  afterAll(async () => {
-    await migrations`drop table if exists app.existing_probe`;
-  });
-
   test.each([
     ["dg_app", testDatabase.appUrl],
     ["dg_migrations", testDatabase.migrationsUrl],
@@ -117,20 +123,63 @@ describe("the roles script (A1.11)", () => {
     },
   );
 
+  // A role that already exists with more than its login, granted by hand or
+  // restored from a dump of the roles. Roles belong to the whole server, so
+  // each case puts the role back as it was.
+  test.each([
+    ["dg_app", "SUPERUSER", "alter role dg_app nosuperuser"],
+    ["dg_app", "CREATEDB", "alter role dg_app nocreatedb"],
+    ["dg_migrations", "CREATEROLE", "alter role dg_migrations nocreaterole"],
+    ["dg_readonly", "REPLICATION", "alter role dg_readonly noreplication"],
+    ["dg_readonly", "BYPASSRLS", "alter role dg_readonly nobypassrls"],
+  ])(
+    "part 1 stops when %s already exists with %s",
+    async (role, attribute, restore) => {
+      await admin.unsafe(`alter role ${role} ${attribute}`);
+      try {
+        await expect(applyRolesAndMigrations()).rejects.toThrow(
+          new RegExp(`role ${role} already exists with .*${attribute}`),
+        );
+      } finally {
+        await admin.unsafe(restore);
+      }
+    },
+  );
+
+  test("part 1 stops when dg_app already exists as a member of dg_migrations", async () => {
+    await admin`grant dg_migrations to dg_app`;
+    try {
+      await expect(applyRolesAndMigrations()).rejects.toThrow(
+        /role dg_app already exists with .*membership in dg_migrations/,
+      );
+    } finally {
+      await admin`revoke dg_migrations from dg_app`;
+    }
+  });
+
   test("part 2 gives the application role the rows of tables that existed before it ran", async () => {
     // A table from a migration that ran before any default privilege existed,
     // as on a fresh database, where the migrations run before part 2.
     await migrations`alter default privileges in schema app
       revoke select, insert, update, delete on tables from dg_app`;
-    await migrations`create table app.existing_probe (id int primary key)`;
-    await expect(
-      app`insert into app.existing_probe (id) values (1)`,
-    ).rejects.toMatchObject(refused);
+    try {
+      await migrations`create table app.existing_probe (id int primary key)`;
+      await expect(
+        app`insert into app.existing_probe (id) values (1)`,
+      ).rejects.toMatchObject(refused);
 
-    await applyRolesAndMigrations();
+      await applyRolesAndMigrations();
 
-    await app`insert into app.existing_probe (id) values (1)`;
-    expect(await app`select id from app.existing_probe`).toEqual([{ id: 1 }]);
+      await app`insert into app.existing_probe (id) values (1)`;
+      expect(await app`select id from app.existing_probe`).toEqual([{ id: 1 }]);
+    } finally {
+      // Whatever happened above, the tables created later, in this file or the
+      // next ones, still give the application role their rows, and the probe
+      // is gone.
+      await migrations`alter default privileges in schema app
+        grant select, insert, update, delete on tables to dg_app`;
+      await migrations`drop table if exists app.existing_probe`;
+    }
   });
 
   test("part 2 lets the application role use the extensions schema", async () => {
@@ -139,6 +188,25 @@ describe("the roles script (A1.11)", () => {
 
     expect(similarity).toBe(1);
   });
+
+  // Names an object inherits, besides a part that does not exist: a pipeline
+  // step with a wrong argument must fail, never succeed having done nothing.
+  test.each(["constructor", "toString", "__proto__", "part-3"])(
+    "refuses the argument %s with the usage",
+    async (argument) => {
+      const stderr = await promisify(execFile)(process.execPath, [
+        rolesScript,
+        argument,
+      ]).then(
+        () => "the script exited 0",
+        (failure: { stderr: string }) => failure.stderr,
+      );
+
+      expect(stderr).toContain(
+        "Usage: node scripts/db-roles.mts part-1|part-2",
+      );
+    },
+  );
 
   test("run again with the migrations, in the same order, changes nothing", async () => {
     const before = await databaseState();

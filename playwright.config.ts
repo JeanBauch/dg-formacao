@@ -23,7 +23,7 @@ export default defineConfig({
     env: {
       APP_ENV: process.env.CI ? "ci" : "local",
       SIGNUP_ENABLED: "true",
-      DATABASE_URL: "postgresql://app:app@localhost:5432/dg_formacao",
+      DATABASE_URL: "postgresql://dg_app:dg_app@localhost:5432/dg_formacao",
       MAILER_ADAPTER: "file",
     },
     reuseExistingServer: false,

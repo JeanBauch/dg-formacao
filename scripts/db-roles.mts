@@ -25,10 +25,37 @@ function connect(url: string) {
   return postgres(url, { max: 1, onnotice: () => {} });
 }
 
+// The attributes no role of this script has. Only a superuser can remove
+// SUPERUSER, REPLICATION and BYPASSRLS, and the administrator of a hosted
+// database is not one, so part 1 reports them instead of changing them.
+const attributes = {
+  rolsuper: "SUPERUSER",
+  rolcreatedb: "CREATEDB",
+  rolcreaterole: "CREATEROLE",
+  rolreplication: "REPLICATION",
+  rolbypassrls: "BYPASSRLS",
+};
+
+type ExistingRole = Record<keyof typeof attributes, boolean> & {
+  memberOf: string[];
+};
+
+// What an existing role has beyond its login: an attribute, or membership in
+// another role, whose privileges it would inherit.
+function extras(existing: ExistingRole) {
+  return [
+    ...Object.entries(attributes)
+      .filter(([column]) => existing[column as keyof typeof attributes])
+      .map(([, attribute]) => attribute),
+    ...existing.memberOf.map((parent) => `membership in ${parent}`),
+  ];
+}
+
 // Part 1, as the administrator (DATABASE_ADMIN_URL), on the database that URL
 // names: creates the three roles with their passwords and lets the migrations
 // role create the schemas. A role that already exists keeps its name and gets
 // the password from the environment again, so a second run changes nothing.
+// It stops, changing nothing, when an existing role has more than its login.
 async function part1() {
   const passwords = {
     [roles.app]: required("DATABASE_APP_PASSWORD"),
@@ -39,14 +66,26 @@ async function part1() {
   try {
     await sql.begin(async (tx) => {
       for (const [role, password] of Object.entries(passwords)) {
+        const [existing] = await tx<ExistingRole[]>`
+          select rolsuper, rolcreatedb, rolcreaterole, rolreplication,
+            rolbypassrls,
+            array(
+              select pg_get_userbyid(m.roleid)::text from pg_auth_members m
+              where m.member = r.oid order by 1
+            ) as "memberOf"
+          from pg_roles r where rolname = ${role}`;
+        const unexpected = existing ? extras(existing) : [];
+        if (unexpected.length > 0) {
+          throw new Error(
+            `Part 1 stopped: the role ${role} already exists with ${unexpected.join(", ")}, which the roles script never grants. ` +
+              "Remove them by hand, then run part 1 again.",
+          );
+        }
         // A role statement takes no bind parameters, so Postgres quotes the
         // password itself.
-        const [{ exists, literal }] = await tx<
-          { exists: boolean; literal: string }[]
-        >`
-          select exists (select from pg_roles where rolname = ${role}) as exists,
-            quote_literal(${password}::text) as literal`;
-        const command = exists ? "alter" : "create";
+        const [{ literal }] = await tx<{ literal: string }[]>`
+          select quote_literal(${password}::text) as literal`;
+        const command = existing ? "alter" : "create";
         await tx.unsafe(
           `${command} role ${role} with login password ${literal}`,
         );
@@ -88,10 +127,11 @@ async function part2() {
   }
 }
 
-const parts: Record<string, () => Promise<void>> = {
-  "part-1": part1,
-  "part-2": part2,
-};
-const part = parts[process.argv[2] ?? ""];
+// A Map, so no name an object inherits (constructor, toString) passes for a part.
+const parts = new Map([
+  ["part-1", part1],
+  ["part-2", part2],
+]);
+const part = parts.get(process.argv[2] ?? "");
 if (!part) throw new Error("Usage: node scripts/db-roles.mts part-1|part-2");
 await part();

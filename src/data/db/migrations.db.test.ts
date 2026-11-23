@@ -1,15 +1,13 @@
-import { readFileSync } from "node:fs";
+import { readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { afterAll, describe, expect, test } from "vitest";
 import { connect, testDatabase } from "@/test/db/test-database";
 
-// The migrations in the repository, as drizzle-kit lists them.
-const journal = JSON.parse(
-  readFileSync(
-    resolve(import.meta.dirname, "../../../drizzle/meta/_journal.json"),
-    "utf8",
-  ),
-) as { entries: unknown[] };
+// The migrations in the repository: the SQL files in the drizzle folder, read
+// apart from the journal the migrator follows, so a file it misses is caught.
+const migrationFiles = readdirSync(
+  resolve(import.meta.dirname, "../../../drizzle"),
+).filter((name) => name.endsWith(".sql"));
 
 // Seam 2: the database the migrations build from scratch, read from the
 // catalog by the administrator, who sees every object.
@@ -58,7 +56,7 @@ describe("migrations run by the migrations role (A1.4)", () => {
     const [{ applied }] = await admin<{ applied: number }[]>`
       select count(*)::int as applied from app.__drizzle_migrations`;
 
-    expect(applied).toBe(journal.entries.length);
+    expect(applied, migrationFiles.join(", ")).toBe(migrationFiles.length);
   });
 
   test("leave the migrations role owning the schemas and every table", async () => {
