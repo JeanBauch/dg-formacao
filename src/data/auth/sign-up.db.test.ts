@@ -475,14 +475,21 @@ describe("a failure in the after-hook of account creation (A2.13)", () => {
   ])(
     "while %s deletes the new account with everything written for it, and the sign-up answers an error without a session",
     async (_, name) => {
+      const form = { ...holder(), name };
       const before = await storedRows();
 
-      const response = await signUp({ ...holder(), name });
+      const { response, log } = await signUpLogged(form);
 
       expect(response.status).toBe(500);
       expect(await response.json()).toMatchObject({ code: "SIGN_UP_FAILED" });
       expect(response.headers.getSetCookie()).toEqual([]);
       expect(await storedRows()).toEqual(before);
+      // The log records the failure without personal data (RNF-OBS-01).
+      expect(log).toMatch(
+        /recording the holder's profile and consents: \w+ \(P0001\)/,
+      );
+      expect(log).not.toContain(form.email);
+      expect(log).not.toContain(form.name);
     },
   );
 
@@ -499,6 +506,8 @@ describe("a failure in the after-hook of account creation (A2.13)", () => {
         /recording the holder's profile and consents: \w+ \(P0001\)/,
       );
       expect(log).toMatch(/deleting the new user failed too: \w+ \(P0001\)/);
+      expect(log).not.toContain(form.email);
+      expect(log).not.toContain(form.name);
     } finally {
       // The user the refused deletion leaves behind is for the cleanup of
       // A2.14. Removed here, after its name stops matching the probe, so the
