@@ -21,7 +21,10 @@ test("the server starts with a valid configuration", async () => {
   vi.stubEnv("APP_ENV", "local");
   vi.stubEnv("SIGNUP_ENABLED", "false");
   vi.stubEnv("MAILER_ADAPTER", "file");
-  vi.stubEnv("DATABASE_URL", "postgresql://app:app@localhost:5432/dg_formacao");
+  vi.stubEnv(
+    "DATABASE_URL",
+    "postgresql://dg_app:dg_app@localhost:5432/dg_formacao",
+  );
   vi.stubEnv("VERCEL", "");
   const { register } = await import("./instrumentation");
 

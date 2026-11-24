@@ -5,3 +5,5 @@ AGENTS.md
 .claude/
 # requirements keep unpadded tables on purpose; Prettier would realign every row
 docs/requisitos/
+# written by drizzle-kit on every generate; formatting it only creates churn
+drizzle/meta/
