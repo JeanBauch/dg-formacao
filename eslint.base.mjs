@@ -44,6 +44,18 @@ function internalImportPattern(other) {
   };
 }
 
+// A5.6: nothing in the app but the audit module reads the security log, the
+// only place with the client's IP (RNF-SEG-15). The audit module writes it and
+// its purge deletes from it; the schema defines it, and tests read it.
+const securityLogMessage =
+  "Only the audit module reaches the security log: record events through its public interface; nothing else reads it (A5.6).";
+const securityLogReads = [
+  "ImportSpecifier[imported.name='securityEvents']",
+  "MemberExpression[property.name='securityEvents']",
+  "TemplateElement[value.raw=/security_events/]",
+  "Literal[value=/security_events/]",
+].map((selector) => ({ selector, message: securityLogMessage }));
+
 // `no-restricted-imports` replaces its options in each matching config block, so
 // every block lists the complete set that applies to its files.
 function restrictImports(...patterns) {
@@ -80,6 +92,16 @@ export function baseConfig({ tsconfig } = {}) {
     },
     // Section 9.12.1: imports between modules do not form a cycle.
     { rules: { "import/no-cycle": "error" } },
+    {
+      files: ["src/**/*.{ts,tsx,mts}"],
+      ignores: [
+        "src/data/audit/**",
+        "src/data/db/schema/**",
+        "src/**/*.test.{ts,tsx}",
+        "src/test/**",
+      ],
+      rules: { "no-restricted-syntax": ["error", ...securityLogReads] },
+    },
     {
       files: ["**/*.{ts,tsx,mts,js,jsx,mjs}"],
       ignores: ["src/infra/**"],

@@ -206,6 +206,40 @@ describe("raw HTML is forbidden (A6.6)", () => {
   });
 });
 
+describe("nothing outside the audit module reads the security log (A5.6)", () => {
+  test("the table, its relational query and its name in SQL are errors in another module", async () => {
+    const texts = await lintErrorTexts(
+      "src/data/catalog/reads-security-log.bad.ts",
+    );
+
+    expect(texts).toEqual(
+      Array(4).fill(expect.stringContaining("security log")),
+    );
+    expect(
+      await lintExample("src/data/catalog/reads-security-log.bad.ts"),
+    ).toEqual(Array(4).fill({ ruleId: "no-restricted-syntax", severity: 2 }));
+  });
+
+  test("the audit module writes and purges it", async () => {
+    const messages = await lintExample("src/data/audit/security-log.good.ts");
+
+    expect(messages).toEqual([]);
+  });
+
+  test("the rule applies to the real code", async () => {
+    const repoRoot = resolve(import.meta.dirname, "../..");
+    const [page] = await new ESLint({ cwd: repoRoot }).lintText(
+      `export const query = "select ip from app.security_events";
+`,
+      { filePath: resolve(repoRoot, "src/app/page.tsx") },
+    );
+
+    expect(page.messages.map((m) => m.ruleId)).toEqual([
+      "no-restricted-syntax",
+    ]);
+  });
+});
+
 describe("the examples stay out of the repository checks (A6.7)", () => {
   const repoRoot = resolve(import.meta.dirname, "../..");
   const repoEslint = new ESLint({ cwd: repoRoot });
