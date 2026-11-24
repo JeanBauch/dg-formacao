@@ -241,6 +241,40 @@ describe("a sign-up without the adult declaration or the acceptance (A2.3)", () 
   });
 });
 
+// The name goes to the user and to the holder's profile, so it is validated
+// at the boundary like the rest of the sign-up.
+describe("the name of a sign-up", () => {
+  test.each([
+    ["missing", { name: undefined }],
+    ["empty", { name: "" }],
+    ["only whitespace", { name: " \t " }],
+  ])("is refused when %s, and nothing is written", async (_, change) => {
+    const before = await storedRows();
+
+    const response = await signUp({ ...holder(), ...change });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ code: "NAME_REQUIRED" });
+    expect(await storedRows()).toEqual(before);
+  });
+
+  test("is refused over 100 characters, and nothing is written", async () => {
+    const before = await storedRows();
+
+    const response = await signUp({ ...holder(), name: "M".repeat(101) });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ code: "NAME_TOO_LONG" });
+    expect(await storedRows()).toEqual(before);
+  });
+
+  test("is accepted with 100 characters", async () => {
+    const response = await signUp({ ...holder(), name: "M".repeat(100) });
+
+    expect(response.status).toBe(200);
+  });
+});
+
 describe("the password of a sign-up (A2.4)", () => {
   test("is refused under 8 characters, and nothing is written", async () => {
     const before = await storedRows();

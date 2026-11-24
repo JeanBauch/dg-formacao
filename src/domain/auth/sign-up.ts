@@ -11,30 +11,53 @@ export const consentDocuments = [
 
 export type ConsentDocument = (typeof consentDocuments)[number];
 
-// What a sign-up declares beyond the account fields: the adult declaration
-// (DP-02) and the acceptance of the Terms of Use and the Privacy Policy (DP-04).
-const signUpDeclarations = z.object({
+// What a sign-up gives beyond the user's fields, two checkboxes that count only
+// when checked: the adult declaration (DP-02) and the acceptance of the Terms
+// of Use and the Privacy Policy (DP-04).
+const signUpConsentFields = z.object({
   adultDeclaration: z.literal(true),
   acceptance: z.literal(true),
 });
 
-type SignUpDeclaration = keyof typeof signUpDeclarations.shape;
+export const signUpNameMaxLength = 100;
 
-// The first declaration a sign-up request lacks, or null when it gives both.
-export function missingSignUpDeclaration(
-  request: unknown,
-): SignUpDeclaration | null {
-  const result = signUpDeclarations.safeParse(request);
+// The name of the user and of the holder's profile: not blank, and at most
+// `signUpNameMaxLength` characters as sent, which is what is stored.
+const signUpName = z
+  .string()
+  .refine((name) => name.trim() !== "")
+  .max(signUpNameMaxLength);
+
+// The fields of a sign-up request this project validates, in the order its
+// refusals are reported.
+const signUpRequest = z.object({
+  name: signUpName,
+  ...signUpConsentFields.shape,
+});
+
+export type SignUpRefusal =
+  | "nameRequired"
+  | "nameTooLong"
+  | "adultDeclarationRequired"
+  | "acceptanceRequired";
+
+// Why a sign-up request is refused before anything is written: its first
+// invalid field, or null when it may go on.
+export function signUpRefusal(request: unknown): SignUpRefusal | null {
+  const result = signUpRequest.safeParse(request);
   if (result.success) return null;
-  const [field] = result.error.issues[0].path;
-  return field === "acceptance" ? "acceptance" : "adultDeclaration";
+  const [{ path, code }] = result.error.issues;
+  if (path[0] === "adultDeclaration") return "adultDeclarationRequired";
+  if (path[0] === "acceptance") return "acceptanceRequired";
+  // The name, or a request that is not an object at all.
+  return code === "too_big" ? "nameTooLong" : "nameRequired";
 }
 
 // The consents a sign-up request records, one per document, each in its
 // current version. Throws when the request lacks the adult declaration or the
 // acceptance, so no consent is ever recorded that was not given.
 export function signUpConsents(request: unknown) {
-  signUpDeclarations.parse(request);
+  signUpConsentFields.parse(request);
   return consentDocuments.map((document) => ({
     document,
     version: consentDocumentVersions[document],

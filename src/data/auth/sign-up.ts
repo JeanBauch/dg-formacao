@@ -4,28 +4,42 @@ import { APIError, createAuthMiddleware } from "better-auth/api";
 import { eq } from "drizzle-orm";
 import { consents, profiles, user } from "@/data/db/schema";
 import { db } from "@/data/db/client";
-import { missingSignUpDeclaration, signUpConsents } from "@/domain/auth";
+import {
+  type SignUpRefusal,
+  signUpConsents,
+  signUpNameMaxLength,
+  signUpRefusal,
+} from "@/domain/auth";
 
-// What the sign-up answers when a declaration is missing: a code the form maps
-// to its field, and a message that says what to do (A2.3).
-const refusals = {
-  adultDeclaration: {
+// What the sign-up answers when it is refused: a code the form maps to its
+// field, and a message that says what to do (A2.3).
+const refusals: Record<SignUpRefusal, { code: string; message: string }> = {
+  nameRequired: {
+    code: "NAME_REQUIRED",
+    message: "Informe o seu nome para criar a conta.",
+  },
+  nameTooLong: {
+    code: "NAME_TOO_LONG",
+    message: `Use um nome de até ${signUpNameMaxLength} caracteres.`,
+  },
+  adultDeclarationRequired: {
     code: "ADULT_DECLARATION_REQUIRED",
     message: "Confirme que você tem 18 anos ou mais para criar a conta.",
   },
-  acceptance: {
+  acceptanceRequired: {
     code: "ACCEPTANCE_REQUIRED",
     message:
       "Aceite os Termos de Uso e a Política de Privacidade para criar a conta.",
   },
 };
 
-// Runs as Better Auth's `hooks.before`: a sign-up without the adult
-// declaration or the acceptance is refused before anything is written.
+// Runs as Better Auth's `hooks.before`: a sign-up with an invalid name, or
+// without the adult declaration or the acceptance, is refused before anything
+// is written.
 export const refuseIncompleteSignUp = createAuthMiddleware(async (ctx) => {
   if (ctx.path !== "/sign-up/email") return;
-  const missing = missingSignUpDeclaration(ctx.body);
-  if (missing) throw APIError.from("BAD_REQUEST", refusals[missing]);
+  const refusal = signUpRefusal(ctx.body);
+  if (refusal) throw APIError.from("BAD_REQUEST", refusals[refusal]);
 });
 
 // What a failure may say in a log: its name and the database's error code.

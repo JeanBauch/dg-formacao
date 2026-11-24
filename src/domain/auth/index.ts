@@ -1,7 +1,8 @@
 // The public interface of the auth module's domain.
 export {
   consentDocuments,
-  missingSignUpDeclaration,
   signUpConsents,
+  signUpNameMaxLength,
+  signUpRefusal,
 } from "./sign-up";
-export type { ConsentDocument } from "./sign-up";
+export type { ConsentDocument, SignUpRefusal } from "./sign-up";
