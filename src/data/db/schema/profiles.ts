@@ -14,8 +14,8 @@ import { user } from "./auth";
 // Perfil padrão and perfil infantil (GLOSSARY.md).
 export const profileKind = app.enum("profile_kind", ["standard", "child"]);
 
-// The identities of use inside an account (ADR-0004). Written only by the auth
-// module; the R0 writes only the holder's profile, when the account is created.
+// A user's identities of use (ADR-0004). Written only by the auth module; the
+// R0 writes only the holder's profile, when the user is created.
 export const profiles = app.table(
   "profiles",
   {
@@ -35,7 +35,8 @@ export const profiles = app.table(
   },
   (table) => [
     index("profiles_user_id_idx").on(table.userId),
-    // At most one holder's profile per account (A2.2).
+    // At most one holder's profile per user (A2.2). Partial on purpose: the
+    // user may have other profiles, which are not the holder's (R3).
     uniqueIndex("profiles_one_holder_per_user")
       .on(table.userId)
       .where(sql`${table.isPrimary}`),

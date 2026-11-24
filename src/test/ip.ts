@@ -7,7 +7,8 @@ const documentationRanges = ["192.0.2", "198.51.100", "203.0.113"];
 let issued = 0;
 
 export function nextTestIp() {
-  const range = documentationRanges[Math.floor(issued / 254) % 3];
+  const range =
+    documentationRanges[Math.floor(issued / 254) % documentationRanges.length];
   const host = (issued % 254) + 1;
   issued += 1;
   return `${range}.${host}`;

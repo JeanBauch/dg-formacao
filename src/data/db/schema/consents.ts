@@ -1,12 +1,12 @@
 import { index, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { v7 as uuidv7 } from "uuid";
-import { consentDocuments } from "../../../domain/auth";
+import { consentDocuments } from "@/domain/auth";
 import { app } from "./app";
 import { user } from "./auth";
 
 export const consentDocument = app.enum("consent_document", consentDocuments);
 
-// The account's consents: the document, its version and when it was given
+// The user's consents: the document, its version and when it was given
 // (aceite and declaração de maioridade, GLOSSARY.md). No IP and no IP hash:
 // the full IP lives only in the security log (RNF-SEG-15). Written only by the
 // auth module.

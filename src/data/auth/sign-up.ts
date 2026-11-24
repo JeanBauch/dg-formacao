@@ -56,14 +56,14 @@ function loggable(error: unknown) {
 }
 
 // Runs as Better Auth's `databaseHooks.user.create.after`, in the sign-up
-// request: every account is born with the holder's profile (RF-PRF-01) and the
+// request: every user is born with the holder's profile (RF-PRF-01) and the
 // consents the sign-up gave, one per document.
-export async function recordHolder(
+export async function recordHolderProfileAndConsents(
   newUser: User,
   context: GenericEndpointContext | null,
 ) {
   try {
-    const given = signUpConsents(context?.body);
+    const consentsGiven = signUpConsents(context?.body);
     await db.transaction(async (tx) => {
       await tx.insert(profiles).values({
         userId: newUser.id,
@@ -73,10 +73,12 @@ export async function recordHolder(
       });
       await tx
         .insert(consents)
-        .values(given.map((consent) => ({ userId: newUser.id, ...consent })));
+        .values(
+          consentsGiven.map((consent) => ({ userId: newUser.id, ...consent })),
+        );
     });
   } catch (error) {
-    // The account committed before this hook ran (A2.12), so it would be left
+    // The user committed before this hook ran (A2.12), so it would be left
     // without its holder's profile and its consents: delete it, and the
     // database deletes its login identity and session with it (A2.13). The
     // cleanup of A2.14 covers a process that dies before this point, and a

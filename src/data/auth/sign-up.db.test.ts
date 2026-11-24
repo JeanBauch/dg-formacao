@@ -27,7 +27,7 @@ afterAll(async () => {
   await Promise.all([owner.end(), app.end()]);
 });
 
-// A2.2: after every scenario, each account in the database has exactly one
+// A2.2: after every scenario, each user in the database has exactly one
 // holder's profile.
 afterEach(async () => {
   const broken = await owner`
@@ -54,7 +54,7 @@ function holder() {
   };
 }
 
-// Every row an account can have, counted table by table.
+// Every row a user can have, counted table by table.
 async function storedRows() {
   const [counts] = await owner<
     {
@@ -106,8 +106,25 @@ async function signUpLogged(body: Record<string, unknown>) {
   }
 }
 
+// The profiles of the user who signed up with this e-mail.
+function profilesOf(email: string) {
+  return owner<{ name: string; kind: string; is_primary: boolean }[]>`
+    select p.name, p.kind, p.is_primary from app.profiles p
+    join app."user" u on u.id = p.user_id
+    where u.email = ${email}`;
+}
+
+// The consents of the user who signed up with this e-mail, by document.
+function consentsOf(email: string) {
+  return owner<{ document: string; version: string; accepted_at: Date }[]>`
+    select c.document, c.version, c.accepted_at from app.consents c
+    join app."user" u on u.id = c.user_id
+    where u.email = ${email}
+    order by c.document::text`;
+}
+
 describe("a valid sign-up (A2.1)", () => {
-  test("creates the account in the same request", async () => {
+  test("creates the user in the same request", async () => {
     const form = holder();
 
     const response = await signUp(form);
@@ -118,17 +135,14 @@ describe("a valid sign-up (A2.1)", () => {
     ).toEqual([{ name: "Maria Fictícia", email: form.email }]);
   });
 
-  test("gives the account the holder's profile, standard, primary and with the sign-up name", async () => {
+  test("gives the user the holder's profile, standard, primary and with the sign-up name", async () => {
     const form = holder();
 
     await signUp(form);
 
-    expect(
-      await owner`
-        select p.name, p.kind, p.is_primary from app.profiles p
-        join app."user" u on u.id = p.user_id
-        where u.email = ${form.email}`,
-    ).toEqual([{ name: "Maria Fictícia", kind: "standard", is_primary: true }]);
+    expect(await profilesOf(form.email)).toEqual([
+      { name: "Maria Fictícia", kind: "standard", is_primary: true },
+    ]);
   });
 
   test("records one consent per document, with its version and time", async () => {
@@ -137,13 +151,7 @@ describe("a valid sign-up (A2.1)", () => {
 
     await signUp(form);
 
-    const consents = await owner<
-      { document: string; version: string; accepted_at: Date }[]
-    >`
-      select c.document, c.version, c.accepted_at from app.consents c
-      join app."user" u on u.id = c.user_id
-      where u.email = ${form.email}
-      order by c.document::text`;
+    const consents = await consentsOf(form.email);
     // The provisional versions of DP-02 and DP-04.
     expect(
       consents.map(({ document, version }) => ({ document, version })),
@@ -159,24 +167,27 @@ describe("a valid sign-up (A2.1)", () => {
     }
   });
 
-  test("keeps no IP and no IP hash with a consent", async () => {
-    const columns = await owner<{ name: string }[]>`
-      select column_name as name from information_schema.columns
-      where table_schema = 'app' and table_name = 'consents'
-      order by ordinal_position`;
+  test("keeps a consent's document, version and time, and no IP nor IP hash", async () => {
+    const columns = await owner<{ name: string; type: string }[]>`
+      select column_name as name, data_type as type
+      from information_schema.columns
+      where table_schema = 'app' and table_name = 'consents'`;
 
-    expect(columns.map(({ name }) => name)).toEqual([
-      "id",
-      "user_id",
-      "document",
-      "version",
-      "accepted_at",
-    ]);
+    expect(columns.map(({ name }) => name)).toEqual(
+      expect.arrayContaining(["document", "version", "accepted_at"]),
+    );
+    // No column named for an IP or a hash, and none of an address type.
+    expect(
+      columns.filter(
+        ({ name, type }) =>
+          /(^|_)(ip|hash)/.test(name) || ["inet", "cidr"].includes(type),
+      ),
+    ).toEqual([]);
   });
 });
 
-describe("the holder's profile, one per account (A2.2)", () => {
-  // The ID of an account that signed up, as the application role finds it.
+describe("the holder's profile, one per user (A2.2)", () => {
+  // The ID of a user that signed up, as the application role finds it.
   async function signedUpUserId() {
     const form = holder();
     await signUp(form);
@@ -185,7 +196,7 @@ describe("the holder's profile, one per account (A2.2)", () => {
     return id;
   }
 
-  test("the database refuses a second holder's profile in the same account", async () => {
+  test("the database refuses a second holder's profile for the same user", async () => {
     const userId = await signedUpUserId();
 
     await expect(app`
@@ -314,7 +325,7 @@ describe("the password of a sign-up (A2.4)", () => {
 });
 
 describe("Better Auth's tables in the app schema (A2.5)", () => {
-  test("receive the account, its login identity, its session and the rate-limit counter of a sign-up", async () => {
+  test("receive the user, its login identity, its session and the rate-limit counter of a sign-up", async () => {
     const form = holder();
     const ip = nextTestIp();
 
@@ -323,7 +334,7 @@ describe("Better Auth's tables in the app schema (A2.5)", () => {
     const [created] = await owner<
       { id: string; role: string | null; banned: boolean | null }[]
     >`select id, role, banned from app."user" where email = ${form.email}`;
-    // The admin plugin's fields, with the values it gives a new account.
+    // The admin plugin's fields, with the values it gives a new user.
     expect(created).toMatchObject({ role: "user", banned: false });
     expect(
       await owner`select provider_id from app.account where user_id = ${created.id}`,
@@ -369,8 +380,8 @@ describe("Better Auth's tables in the app schema (A2.5)", () => {
   });
 });
 
-describe("the account's ID (A2.6)", () => {
-  test("of a new account is a UUIDv7", async () => {
+describe("the user's ID (A2.6)", () => {
+  test("of a new user is a UUIDv7", async () => {
     const form = holder();
 
     await signUp(form);
@@ -383,7 +394,7 @@ describe("the account's ID (A2.6)", () => {
     );
   });
 
-  test("is text, as the Better Auth CLI generates it, and so is every key to the account", async () => {
+  test("is text, as the Better Auth CLI generates it, and so is every key to the user", async () => {
     const [{ type }] = await owner<{ type: string }[]>`
       select format_type(atttypid, atttypmod) as type from pg_attribute
       where attrelid = 'app."user"'::regclass and attname = 'id'`;
@@ -395,7 +406,7 @@ describe("the account's ID (A2.6)", () => {
       where c.contype = 'f' and c.confrelid = 'app."user"'::regclass
       order by 1`;
 
-    // The type the CLI wrote for the account's ID (U2).
+    // The type the CLI wrote for the user's ID (U2).
     expect(type).toBe("text");
     expect(keys).toEqual([
       { table: "app.account", type: "text" },
@@ -408,12 +419,12 @@ describe("the account's ID (A2.6)", () => {
 
 // Probes the migrations role adds to the test database while the hook's tests
 // run, as a later migration would add a table. A trigger refuses the write of a
-// login identity, a profile or a consent for an account with a marker name,
-// as a database failure would. A sequence counts every attempt to write a
-// profile: a sequence does not roll back, so it sees an attempt whose
-// transaction failed. And a profile is refused unless its account is already
-// committed by another transaction: the account row must be visible, and the
-// transaction that wrote it (its xmin) must not be the one writing the profile.
+// login identity, a profile or a consent for a user with a marker name, as a
+// database failure would. A sequence counts every attempt to write a profile:
+// a sequence does not roll back, so it sees an attempt whose transaction
+// failed. And a profile is refused unless its user is already committed by
+// another transaction: the user row must be visible, and the transaction that
+// wrote it (its xmin) must not be the one writing the profile.
 const failingWrites = {
   account: "Falha na Identidade",
   profiles: "Falha no Perfil",
@@ -439,10 +450,10 @@ async function addProbes() {
       if tg_table_name = 'profiles' then
         perform nextval('app.test_profile_writes');
         if written_here is null then
-          raise exception 'probe: the account of the profile is not committed';
+          raise exception 'probe: the user of the profile is not committed';
         end if;
         if written_here then
-          raise exception 'probe: the profile is written inside the account transaction';
+          raise exception 'probe: the profile is written inside the user transaction';
         end if;
       end if;
       if (tg_table_name, holder) in (
@@ -488,92 +499,91 @@ async function profileWriteAttempts() {
   return attempts;
 }
 
-describe("the after-hook of account creation, with the adapter's transaction on (A2.12)", () => {
+describe("the after-hook of user creation", () => {
   beforeAll(addProbes);
   afterAll(removeProbes);
 
-  test("runs in the sign-up request, after the account's commit, outside its transaction", async () => {
-    const form = holder();
-    const attempts = await profileWriteAttempts();
+  describe("with the adapter's transaction on (A2.12)", () => {
+    test("runs in the sign-up request, after the user's commit, outside its transaction", async () => {
+      const form = holder();
+      const attempts = await profileWriteAttempts();
 
-    const response = await signUp(form);
+      const response = await signUp(form);
 
-    expect(response.status).toBe(200);
-    expect(await profileWriteAttempts()).toBe(attempts + 1);
-    expect(
-      await owner`
-        select p.name from app.profiles p join app."user" u on u.id = p.user_id
-        where u.email = ${form.email}`,
-    ).toEqual([{ name: form.name }]);
-  });
+      expect(response.status).toBe(200);
+      expect(await profileWriteAttempts()).toBe(attempts + 1);
+      expect(await profilesOf(form.email)).toMatchObject([{ name: form.name }]);
+    });
 
-  test("does not run when the account write fails and its transaction rolls back", async () => {
-    const before = await storedRows();
-    const attempts = await profileWriteAttempts();
-
-    const response = await signUp({ ...holder(), name: failingWrites.account });
-
-    expect(response.ok).toBe(false);
-    expect(await storedRows()).toEqual(before);
-    expect(await profileWriteAttempts()).toBe(attempts);
-  });
-});
-
-describe("a failure in the after-hook of account creation (A2.13)", () => {
-  beforeAll(addProbes);
-  afterAll(removeProbes);
-
-  test.each([
-    ["writing the profile", failingWrites.profiles],
-    ["writing the consents", failingWrites.consents],
-  ])(
-    "while %s deletes the new account with everything written for it, and the sign-up answers an error without a session",
-    async (_, name) => {
-      const form = { ...holder(), name };
+    test("does not run when the login identity write fails and its transaction rolls back, the user with it", async () => {
       const before = await storedRows();
+      const attempts = await profileWriteAttempts();
 
-      const { response, log } = await signUpLogged(form);
+      // The login identity fails, not the user: a failing user write never queues the hook.
+      const response = await signUp({
+        ...holder(),
+        name: failingWrites.account,
+      });
 
-      expect(response.status).toBe(500);
-      expect(await response.json()).toMatchObject({ code: "SIGN_UP_FAILED" });
-      expect(response.headers.getSetCookie()).toEqual([]);
+      expect(response.ok).toBe(false);
       expect(await storedRows()).toEqual(before);
-      // The log records the failure without personal data (RNF-OBS-01).
-      expect(log).toMatch(
-        /recording the holder's profile and consents: \w+ \(P0001\)/,
-      );
-      expect(log).not.toContain(form.email);
-      expect(log).not.toContain(form.name);
-    },
-  );
+      expect(await profileWriteAttempts()).toBe(attempts);
+    });
+  });
 
-  test("when deleting the new user fails too, the sign-up still answers its error without a session, and the log records both failures", async () => {
-    const form = { ...holder(), name: failingDeletion };
+  describe("when it fails (A2.13)", () => {
+    test.each([
+      ["writing the profile", failingWrites.profiles],
+      ["writing the consents", failingWrites.consents],
+    ])(
+      "while %s deletes the new user with everything written for it, and the sign-up answers an error without a session",
+      async (_, name) => {
+        const form = { ...holder(), name };
+        const before = await storedRows();
 
-    try {
-      const { response, log } = await signUpLogged(form);
+        const { response, log } = await signUpLogged(form);
 
-      expect(response.status).toBe(500);
-      expect(await response.json()).toMatchObject({ code: "SIGN_UP_FAILED" });
-      expect(response.headers.getSetCookie()).toEqual([]);
-      expect(log).toMatch(
-        /recording the holder's profile and consents: \w+ \(P0001\)/,
-      );
-      expect(log).toMatch(/deleting the new user failed too: \w+ \(P0001\)/);
-      expect(log).not.toContain(form.email);
-      expect(log).not.toContain(form.name);
-    } finally {
-      // The user the refused deletion leaves behind is for the cleanup of
-      // A2.14. Removed here, after its name stops matching the probe, so the
-      // invariant of A2.2 holds for the scenarios that follow.
-      await owner`update app."user" set name = 'Removida' where email = ${form.email}`;
-      await owner`delete from app."user" where email = ${form.email}`;
-    }
+        expect(response.status).toBe(500);
+        expect(await response.json()).toMatchObject({ code: "SIGN_UP_FAILED" });
+        expect(response.headers.getSetCookie()).toEqual([]);
+        expect(await storedRows()).toEqual(before);
+        // The log records the failure without personal data (RNF-OBS-01).
+        expect(log).toMatch(
+          /recording the holder's profile and consents: \w+ \(P0001\)/,
+        );
+        expect(log).not.toContain(form.email);
+        expect(log).not.toContain(form.name);
+      },
+    );
+
+    test("when deleting the new user fails too, the sign-up still answers its error without a session, and the log records both failures", async () => {
+      const form = { ...holder(), name: failingDeletion };
+
+      try {
+        const { response, log } = await signUpLogged(form);
+
+        expect(response.status).toBe(500);
+        expect(await response.json()).toMatchObject({ code: "SIGN_UP_FAILED" });
+        expect(response.headers.getSetCookie()).toEqual([]);
+        expect(log).toMatch(
+          /recording the holder's profile and consents: \w+ \(P0001\)/,
+        );
+        expect(log).toMatch(/deleting the new user failed too: \w+ \(P0001\)/);
+        expect(log).not.toContain(form.email);
+        expect(log).not.toContain(form.name);
+      } finally {
+        // The user the refused deletion leaves behind is for the cleanup of
+        // A2.14. Removed here, after its name stops matching the probe, so the
+        // invariant of A2.2 holds for the scenarios that follow.
+        await owner`update app."user" set name = 'Removida' where email = ${form.email}`;
+        await owner`delete from app."user" where email = ${form.email}`;
+      }
+    });
   });
 });
 
 describe("the writes of a sign-up (NF-3)", () => {
-  test("are exactly one account, one holder's profile and three consents, one per document, in under 2 s", async () => {
+  test("are exactly one user, one profile, the holder's, and three consents, one per document, in under 2 s", async () => {
     const form = holder();
     const before = await storedRows();
     const started = performance.now();
@@ -582,22 +592,20 @@ describe("the writes of a sign-up (NF-3)", () => {
 
     const elapsed = performance.now() - started;
     const after = await storedRows();
-    const [{ documents }] = await owner<{ documents: number }[]>`
-      select count(distinct c.document)::int as documents from app.consents c
-      join app."user" u on u.id = c.user_id where u.email = ${form.email}`;
+    const consents = await consentsOf(form.email);
     expect(response.status).toBe(200);
     expect({
       users: after.users - before.users,
       profiles: after.profiles - before.profiles,
       holderProfiles: after.holderProfiles - before.holderProfiles,
       consents: after.consents - before.consents,
-      documents,
+      documents: consents.map(({ document }) => document),
     }).toEqual({
       users: 1,
       profiles: 1,
       holderProfiles: 1,
       consents: 3,
-      documents: 3,
+      documents: ["adult_declaration", "privacy_policy", "terms_of_use"],
     });
     expect(elapsed).toBeLessThan(2_000);
   });
