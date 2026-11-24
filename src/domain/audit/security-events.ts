@@ -199,3 +199,62 @@ export function securityEventRow(occurrence: SecurityEvent, at: Date) {
     lastAt: at,
   };
 }
+
+// The roles of the staff, as the admin plugin keeps them in the role field:
+// one value, or several separated by commas.
+const staffRoles = ["instructor", "admin"];
+
+export function isStaffRole(role: string | null) {
+  return (
+    role !== null &&
+    role.split(",").some((one) => staffRoles.includes(one.trim()))
+  );
+}
+
+// Whether an event stays outside the day's cap (A5.14). The events that need
+// a valid credential or session do: a staff sign-in and an account lockout
+// always, and a completed password reset and a refusal when they come from a
+// staff account.
+export function isOutsideCap(event: SecurityEventType, staffAccount: boolean) {
+  return (
+    event === "staff_sign_in_succeeded" ||
+    event === "account_locked" ||
+    (staffAccount &&
+      (event === "password_reset_completed" || event === "access_denied"))
+  );
+}
+
+// The overflow row an occurrence counts in once the day's cap is reached
+// (A5.14): one row for its event and the UTC hour, as in
+// overflow:sign_in_succeeded:2026-11-24T13, with no IP, user agent or details.
+// A failed sign-in or a password reset request against a staff account counts
+// in a row of that account instead, as in
+// overflow:sign_in_failed:<account>:2026-11-24T13. The staff is small, so those
+// rows stay few, and they show which account is under attack. The route column
+// cannot be empty, so the row says the route is not one of the list.
+export function overflowRow(
+  occurrence: SecurityEvent,
+  at: Date,
+  staffAccount: boolean,
+) {
+  const hour = at.toISOString().slice(0, 13);
+  const account =
+    staffAccount &&
+    (occurrence.event === "sign_in_failed" ||
+      occurrence.event === "password_reset_requested")
+      ? occurrence.userId
+      : null;
+  return {
+    dedupeKey: ["overflow", occurrence.event, account, hour]
+      .filter((part) => part !== null)
+      .join(":"),
+    event: occurrence.event,
+    userId: account,
+    ip: null,
+    userAgent: null,
+    route: "other",
+    details: null,
+    firstAt: at,
+    lastAt: at,
+  };
+}

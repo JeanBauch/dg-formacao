@@ -11,6 +11,18 @@ const envSchema = z
       .transform((value) => value === "true"),
     DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
     MAILER_ADAPTER: z.enum(["file", "resend"]),
+    // The security log's daily cap of new rows (A5.14): whole decimal digits,
+    // from 1 to 2,000. A larger cap first needs a new budget in RNF-SEG-15.
+    SECURITY_EVENTS_DAILY_CAP: z
+      .string()
+      .default("1000")
+      .pipe(
+        z
+          .string()
+          .regex(/^\d+$/, "must be a whole number from 1 to 2000")
+          .transform(Number)
+          .pipe(z.number().min(1).max(2000)),
+      ),
     // Vercel defines it at build and run time; it only exists to refuse local and ci.
     VERCEL: z.string().optional(),
   })

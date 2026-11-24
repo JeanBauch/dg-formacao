@@ -56,6 +56,7 @@ describe("the environment inventory (A1.7)", () => {
       APP_ENV: (value) => value === "local",
       SIGNUP_ENABLED: (value) => value === "true",
       MAILER_ADAPTER: (value) => value === "file",
+      SECURITY_EVENTS_DAILY_CAP: (value) => value === "1000",
       VERCEL: (value) => value === "",
       DATABASE_URL: (value) =>
         ["localhost", "127.0.0.1"].includes(new URL(value).hostname),
@@ -71,6 +72,7 @@ describe("the environment inventory (A1.7)", () => {
       APP_ENV: "local",
       SIGNUP_ENABLED: true,
       MAILER_ADAPTER: "file",
+      SECURITY_EVENTS_DAILY_CAP: 1000,
     });
   });
 });

@@ -10,6 +10,7 @@ import {
 } from "vitest";
 import { recordSecurityEvent } from "@/data/audit";
 import type { SecurityEvent } from "@/domain/audit";
+import { createFakeTelemetry } from "@/infra/telemetry/fake";
 import { columnTypes } from "@/test/db/column-types";
 import { connect, testDatabase } from "@/test/db/test-database";
 import { nextTestIp } from "@/test/ip";
@@ -603,4 +604,43 @@ describe("two simultaneous occurrences with the same key (A5.10)", () => {
       }),
     ]);
   });
+});
+
+describe("the daily cap of new rows (A5.14)", () => {
+  test("is 1,000 by default: the 1,000th new row of the day is a row, and the next one goes to overflow", async () => {
+    const { telemetry, warnings } = createFakeTelemetry();
+    // One failed sign-in from each of 1,001 IPv6 /64 networks of the range
+    // reserved for documentation (RFC 3849).
+    const attempt = (range: number) =>
+      recordSecurityEvent(
+        {
+          event: "sign_in_failed",
+          reason: "invalid_credentials",
+          userId: null,
+          ip: `2001:db8:0:${range.toString(16)}::1`,
+          userAgent: null,
+          route: "/sign-in/email",
+        },
+        telemetry,
+      );
+
+    for (let range = 0; range < 1_000; range += 1) {
+      await attempt(range);
+    }
+    expect(
+      await owner`select count(*)::int as rows from app.security_events`,
+    ).toEqual([{ rows: 1_000 }]);
+    expect(warnings).toEqual([]);
+
+    await attempt(1_000);
+
+    expect(
+      await owner`
+        select dedupe_key, count from app.security_events
+        where dedupe_key like 'overflow:%'`,
+    ).toEqual([
+      { dedupe_key: "overflow:sign_in_failed:2026-11-24T13", count: 1 },
+    ]);
+    expect(warnings).toHaveLength(1);
+  }, 60_000);
 });

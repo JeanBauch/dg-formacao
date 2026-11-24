@@ -2,6 +2,9 @@
 export { auditDiff } from "./audit-log";
 export type { AuditEntry } from "./audit-log";
 export {
+  isOutsideCap,
+  isStaffRole,
+  overflowRow,
   securityEventRow,
   securityEventTypes,
   userAgentMaxLength,
