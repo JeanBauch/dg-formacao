@@ -8,6 +8,34 @@
       "when": 1795471550438,
       "tag": "0000_create-schemas",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1795526008825,
+      "tag": "0001_create-auth-tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795526054484,
+      "tag": "0002_create-profiles",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1795526123444,
+      "tag": "0003_create-consents",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795526355840,
+      "tag": "0004_add-one-holder-profile-index",
+      "breakpoints": true
     }
   ]
 }

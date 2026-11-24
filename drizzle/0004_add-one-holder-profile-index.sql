@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "profiles_one_holder_per_user" ON "app"."profiles" USING btree ("user_id") WHERE "app"."profiles"."is_primary";
