@@ -224,6 +224,10 @@ export function isOutsideCap(event: SecurityEventType, staffAccount: boolean) {
   );
 }
 
+// How the key of every overflow row starts (A5.14), and of no other row: the key
+// of any other row starts with its event (A5.3), and no event is called that.
+export const overflowKeyPrefix = "overflow:";
+
 // The overflow row an occurrence counts in once the day's cap is reached
 // (A5.14): one row for its event and the UTC hour, as in
 // overflow:sign_in_succeeded:2026-11-24T13, with no IP, user agent or details.
@@ -245,9 +249,11 @@ export function overflowRow(
       ? occurrence.userId
       : null;
   return {
-    dedupeKey: ["overflow", occurrence.event, account, hour]
-      .filter((part) => part !== null)
-      .join(":"),
+    dedupeKey:
+      overflowKeyPrefix +
+      [occurrence.event, account, hour]
+        .filter((part) => part !== null)
+        .join(":"),
     event: occurrence.event,
     userId: account,
     ip: null,

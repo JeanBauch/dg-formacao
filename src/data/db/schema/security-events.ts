@@ -17,9 +17,10 @@ import { app } from "./app";
 export const securityEventType = app.enum("security_event", securityEventTypes);
 
 // The security log (registro de segurança, RNF-SEG-15), the only place that
-// keeps the client's IP. Only the audit module writes it, and nothing reads it
-// but the purge (A5.6). The user is kept without a foreign key, so a deleted
-// user's rows stay until the end of the retention period (A2.14).
+// keeps the client's IP. Only the audit module writes it (A5.6). Its writer
+// also reads it, for the daily cap only (A5.14), and nothing else reads it but
+// the purge. The user is kept without a foreign key, so a deleted user's rows
+// stay until the end of the retention period (A2.14).
 export const securityEvents = app.table(
   "security_events",
   {

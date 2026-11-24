@@ -4,6 +4,7 @@ export type { AuditEntry } from "./audit-log";
 export {
   isOutsideCap,
   isStaffRole,
+  overflowKeyPrefix,
   overflowRow,
   securityEventRow,
   securityEventTypes,

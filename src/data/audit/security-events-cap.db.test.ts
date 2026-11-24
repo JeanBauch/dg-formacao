@@ -17,9 +17,10 @@ import { nextTestIp } from "@/test/ip";
 
 // The cap of this file is 3 new rows a day, so a few events reach it (A5.14).
 // The configuration is read when the code under test loads, so it is set before
-// the imports run. The default cap of 1,000 is in security-events.db.test.ts.
+// the imports run, and restored after the file. The default cap of 1,000 is in
+// security-events.db.test.ts.
 vi.hoisted(() => {
-  process.env.SECURITY_EVENTS_DAILY_CAP = "3";
+  vi.stubEnv("SECURITY_EVENTS_DAILY_CAP", "3");
 });
 
 // Seam 2: the audit module's public interface, over the test database, as the
@@ -47,6 +48,7 @@ afterEach(() => {
 });
 
 afterAll(async () => {
+  vi.unstubAllEnvs();
   await owner.end();
 });
 
@@ -409,6 +411,33 @@ describe("the warning of the cap (A5.14)", () => {
       } as Partial<SecurityEvent>),
     );
     expect(fake.warnings).toEqual([reached]);
+  });
+
+  test("goes out once the day when many events reach the first overflow together, as in a sign-in flood, and again the next day", async () => {
+    // 40 events at once, each of which would create a new row.
+    const flood = () =>
+      Promise.all(Array.from({ length: 40 }, () => record(newRow())));
+
+    await reachTheCap();
+    await flood();
+    vi.setSystemTime(new Date("2026-11-25T00:00:00.000Z"));
+    await reachTheCap();
+    await flood();
+
+    expect(fake.warnings).toEqual([
+      reached,
+      { ...reached, context: { cap: 3, day: "2026-11-25" } },
+    ]);
+    // Every event of the floods is counted.
+    expect(
+      (await overflowRows()).map(({ dedupe_key, count }) => ({
+        dedupe_key,
+        count,
+      })),
+    ).toEqual([
+      { dedupe_key: "overflow:sign_in_succeeded:2026-11-24T13", count: 40 },
+      { dedupe_key: "overflow:sign_in_succeeded:2026-11-25T00", count: 40 },
+    ]);
   });
 
   test("goes out again on the next day, when its cap is reached and exceeded", async () => {
