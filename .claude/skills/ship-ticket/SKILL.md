@@ -23,6 +23,7 @@ Check each of these. If any fails, stop and say which one:
 - `git switch main` and `git pull --ff-only` succeed.
 - The ticket is open and labelled `type:ticket`, and every `blockedBy` issue is closed.
 - Its parent spec has `ready-for-agent`.
+- The local services the tests need are up: if the project's `CLAUDE.md` lists a command that starts them (a database container, for example), run it and check that it succeeds.
 
 Note whether the ticket has the `model:opus` label.
 
@@ -56,7 +57,9 @@ Give every finding a verdict:
 - **accept**: a real issue you choose to carry. Give the reason.
 - **reject**: false positive, or contradicts the spec. Give the reason.
 
-Send all the **fix** findings to a new `implementer` call in fix mode, listing each finding with its file and failure scenario. Use the same model as step 4, or Opus if step 7 escalated. Then repeat step 5.
+Before the fix call, check step 7: when step 4 ran on Sonnet and at least one **fix** finding is a correctness bug, escalate now, so the fix call runs on Opus. Then send all the **fix** findings to a new `implementer` call in fix mode, listing each finding with its file and failure scenario, on the model step 4 used or on Opus if you escalated. Then repeat step 5.
+
+A finding that both reviews report gets one verdict, citing both.
 
 Done when every finding has a verdict, the fixes are committed, and step 5 is green again.
 
@@ -98,7 +101,7 @@ Comment on the ticket with one line:
 
 `Métricas: modelo=<sonnet|opus|sonnet→opus> · findings=<fix>/<accept>/<reject> · assumptions=<n> · ci-vermelho=<n>`
 
-`assumptions` counts the ASSUMPTION comments on the ticket now, after edits, so a replaced assumption counts once.
+`assumptions` counts the ASSUMPTION items on the ticket. An item that a later `ASSUMPTION (substitui ...)` comment replaces counts once.
 
 Then tell the human:
 

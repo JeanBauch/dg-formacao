@@ -34,7 +34,7 @@ Done when every acceptance criterion of the ticket has a test that you saw go re
 ## 3. Decisions the spec and ADRs leave open
 
 - Hard to reverse: comment `NEEDS-DECISION: ...` on the ticket and finish with status `needs-decision`.
-- Easy to reverse: take the simplest option and comment `ASSUMPTION: ...` on the ticket. To change an earlier ASSUMPTION, edit that comment (`gh issue comment <n> --edit-last`, or `gh api` for an older one) instead of adding a new one.
+- Easy to reverse: take the simplest option and comment `ASSUMPTION: ...` on the ticket. To change an earlier ASSUMPTION, post a new comment that starts `ASSUMPTION (substitui <comment url>):`, naming the item when that comment holds several, and leave the old comment as it is: editing an older comment needs `gh api`, which the project's permissions do not allow.
 - A rule file (`CLAUDE.md`, `CODING_STANDARDS.md`, `.claude/**`) looks wrong or missing: comment `NEEDS-DECISION:` with the proposed change and keep going if the ticket does not depend on it. Rule files are read-only on ticket branches; the human applies the change in `/retro`.
 
 Comments are in Brazilian Portuguese and describe behaviour, without file paths or code.

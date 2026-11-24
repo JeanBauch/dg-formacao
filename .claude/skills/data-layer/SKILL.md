@@ -22,7 +22,7 @@ The decisions behind these rules are in ADR-007 and ADR-009 (`docs/adr/`), and t
 
 ## Columns
 
-- **IDs:** UUIDv7 generated in the app, `uuid('id').primaryKey().$defaultFn(() => uuidv7())`, with `uuidv7` from the `uuid` package. Better Auth uses the same generator. A column that references a Better Auth table uses the type the Better Auth CLI generated for that table's `id`.
+- **IDs:** UUIDv7 generated in the app, `uuid('id').primaryKey().$defaultFn(() => uuidv7())`, with `uuidv7` from the `uuid` package. Better Auth's tables, the account's `user` included, keep the `text` id its CLI generates, and the same generator fills it (`advanced.database.generateId: () => uuidv7()`). A column that references a Better Auth table is `text`, such as `text('user_id')`, never `uuid`.
 - **Timestamps:** `timestamp('created_at', { withTimezone: true }).notNull().defaultNow()`, stored in UTC.
 - **Names:** snake_case column names declared explicitly; camelCase TypeScript keys. Keys to the account holder are `user_id` (skill `auth-identity`).
 - **Derived columns** (`content_format`, totals, `search_text`): each comes from one pure function in `src/domain`, and every write path that changes an input calls it.
@@ -66,8 +66,3 @@ Follow [MIGRATIONS.md](MIGRATIONS.md) for every schema change. Each migration ex
 - Relational queries use `relations()` with `db.query.<table>.findMany({ with })`. `defineRelations` belongs to 1.0.
 - drizzle-kit 0.31 writes flat `drizzle/NNNN_name.sql` files plus `drizzle/meta/`. Folder-per-migration layouts in the docs belong to 1.0.
 - `drizzle-kit push` targets a throwaway local database only. Shared databases change through committed migrations.
-
-## Unverified (confirm in R0, then delete this section)
-
-- drizzle-kit emits `.op('extensions.gin_trgm_ops')` exactly as written in the index SQL.
-- The column type the Better Auth CLI generates for `user.id` when `generateId` returns a UUID.

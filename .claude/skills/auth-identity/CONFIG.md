@@ -70,3 +70,6 @@ export const auth = betterAuth({
 ## Schema generation
 
 Generate the Better Auth tables with the CLI (`npx auth@latest generate --adapter drizzle --dialect postgresql`; older docs call the package `@better-auth/cli`). Write the output to `src/data/db/schema/auth.ts`, then follow the migration steps of skill `data-layer`. Better Auth's `validateSchema`, on by default outside production, reports any drift between that file and what the library writes.
+
+- Declare every Better Auth table with the shared `app` schema object (`app.table(...)`), never in the default schema. That declaration is what puts the tables in `app` at runtime: the adapter uses the schema object it receives.
+- Keep `schemaName: 'app'` in the adapter, so the CLI generates the tables in `app` when the schema is regenerated. On its own, the option moves no table: in 1.7, only the CLI's schema generator reads it.
