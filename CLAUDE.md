@@ -12,6 +12,7 @@ Claude Code reads this file instead of AGENTS.md, so the Next.js agent rules are
 - One test file: `pnpm vitest run path/to/file.test.ts`
 - Tests related to changed files: `pnpm vitest related --run <files>`
 - Typecheck: `pnpm typecheck` · Lint: `pnpm lint` · Unit: `pnpm test` · E2E: `pnpm test:e2e`
+- Local services: the database tests need the local Postgres; start it with `pnpm db:up` (Docker must be running).
 
 ## Workflow rules
 

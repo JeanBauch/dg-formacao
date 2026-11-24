@@ -62,6 +62,7 @@ export const auth = betterAuth({
 - **`storage: 'database'`.** Memory storage dies with each serverless instance.
 - **Session cookie cache stays off.** With it on, a ban or a revoked session survives until the cache expires; off, it ends on the next request.
 - **IP tracking stays on; the session keeps no IP.** Rate limiting reads the client IP from the request (`x-forwarded-for`) on every call and keys the `rateLimit` rows on it. Whether Better Auth prunes the expired rows itself is unconfirmed (item U12 in SKILL.md), so the daily job deletes them: rows whose last request is older than the longest rule window. `advanced.ipAddress.disableIpTracking` would switch rate limiting off entirely, so it stays unset. The session row never needs the IP, so the `session.create.before` hook drops it. The full IP goes only to the security log (`security_events`, RNF-SEG-15), never to the UI or the application logs. Confirm in R0 that the hook leaves `ip_address` empty and that rate limiting still applies behind Vercel (spec section 10.4, check 3).
+- With the Drizzle adapter's transaction on, `databaseHooks.user.create.after` runs in the sign-up request, after the account's commit and outside its transaction, and does not run when the account write rolls back (confirmed in R0). A failure inside the hook leaves a committed account, so the hook compensates by deleting it, as the sign-up does.
 - **Sign-up enumeration is accepted.** With `autoSignIn` on and verification not required at sign-in, signing up with an existing e-mail returns an error. Better Auth hides this only when sign-in waits for verification. RF-AUT-04 requires identical responses only on password reset, which does not reveal accounts.
 - **Fields users must not set** (`role`, `banned`, phone verification) are declared with `input: false` whenever they appear in `additionalFields`.
 - **Plugins in the MVP:** `admin` and `nextCookies`, with `nextCookies` last as the docs require. MFA arrives post-MVP as the `twoFactor` plugin plus a migration (RF-AUT-08).
@@ -70,3 +71,6 @@ export const auth = betterAuth({
 ## Schema generation
 
 Generate the Better Auth tables with the CLI (`npx auth@latest generate --adapter drizzle --dialect postgresql`; older docs call the package `@better-auth/cli`). Write the output to `src/data/db/schema/auth.ts`, then follow the migration steps of skill `data-layer`. Better Auth's `validateSchema`, on by default outside production, reports any drift between that file and what the library writes.
+
+- Declare every Better Auth table with the shared `app` schema object (`app.table(...)`), never in the default schema. That declaration is what puts the tables in `app` at runtime: the adapter uses the schema object it receives.
+- Keep `schemaName: 'app'` in the adapter, so the CLI generates the tables in `app` when the schema is regenerated. On its own, the option moves no table: in 1.7, only the CLI's schema generator reads it.
