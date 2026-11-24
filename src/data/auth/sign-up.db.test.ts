@@ -534,10 +534,17 @@ describe("the writes of a sign-up (NF-3)", () => {
     expect(response.status).toBe(200);
     expect({
       users: after.users - before.users,
+      profiles: after.profiles - before.profiles,
       holderProfiles: after.holderProfiles - before.holderProfiles,
       consents: after.consents - before.consents,
       documents,
-    }).toEqual({ users: 1, holderProfiles: 1, consents: 3, documents: 3 });
+    }).toEqual({
+      users: 1,
+      profiles: 1,
+      holderProfiles: 1,
+      consents: 3,
+      documents: 3,
+    });
     expect(elapsed).toBeLessThan(2_000);
   });
 });
