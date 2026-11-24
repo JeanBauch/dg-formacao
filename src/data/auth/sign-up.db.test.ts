@@ -275,6 +275,26 @@ describe("the name of a sign-up", () => {
   });
 });
 
+// Better Auth would store an image URL sent by the client in the user, and no
+// image from a third party is shown (RNF-SEG-12).
+describe("an image in a sign-up", () => {
+  test.each([
+    ["a third-party URL", "https://example.com/foto.png"],
+    ["a relative path", "/foto.png"],
+    ["an empty text", ""],
+  ])("is refused as %s, and nothing is written", async (_, image) => {
+    const before = await storedRows();
+
+    const response = await signUp({ ...holder(), image });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      code: "IMAGE_NOT_ACCEPTED",
+    });
+    expect(await storedRows()).toEqual(before);
+  });
+});
+
 describe("the password of a sign-up (A2.4)", () => {
   test("is refused under 8 characters, and nothing is written", async () => {
     const before = await storedRows();

@@ -22,6 +22,10 @@ const refusals: Record<SignUpRefusal, { code: string; message: string }> = {
     code: "NAME_TOO_LONG",
     message: `Use um nome de até ${signUpNameMaxLength} caracteres.`,
   },
+  imageNotAccepted: {
+    code: "IMAGE_NOT_ACCEPTED",
+    message: "O cadastro não aceita imagem. Envie o cadastro sem ela.",
+  },
   adultDeclarationRequired: {
     code: "ADULT_DECLARATION_REQUIRED",
     message: "Confirme que você tem 18 anos ou mais para criar a conta.",

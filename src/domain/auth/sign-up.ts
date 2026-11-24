@@ -29,15 +29,18 @@ const signUpName = z
   .max(signUpNameMaxLength);
 
 // The fields of a sign-up request this project validates, in the order its
-// refusals are reported.
+// refusals are reported. A sign-up carries no image: Better Auth would store
+// the client's URL in the user, and no third-party image is shown (RNF-SEG-12).
 const signUpRequest = z.object({
   name: signUpName,
+  image: z.never().optional(),
   ...signUpConsentFields.shape,
 });
 
 export type SignUpRefusal =
   | "nameRequired"
   | "nameTooLong"
+  | "imageNotAccepted"
   | "adultDeclarationRequired"
   | "acceptanceRequired";
 
@@ -47,6 +50,7 @@ export function signUpRefusal(request: unknown): SignUpRefusal | null {
   const result = signUpRequest.safeParse(request);
   if (result.success) return null;
   const [{ path, code }] = result.error.issues;
+  if (path[0] === "image") return "imageNotAccepted";
   if (path[0] === "adultDeclaration") return "adultDeclarationRequired";
   if (path[0] === "acceptance") return "acceptanceRequired";
   // The name, or a request that is not an object at all.
