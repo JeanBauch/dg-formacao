@@ -2,7 +2,7 @@
 import { resolve } from "node:path";
 import { ESLint } from "eslint";
 import ts from "typescript";
-import { describe, expect, test, vi } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { baseConfig } from "../../eslint.base.mjs";
 
 // Every test runs type-aware ESLint, which is slow on a cold CI runner.
@@ -37,6 +37,23 @@ async function lintErrorTexts(path: string) {
 // The repository's own lint, over the real code.
 const repoRoot = resolve(import.meta.dirname, "../..");
 const repoEslint = new ESLint({ cwd: repoRoot });
+
+describe("an example lints the same however often it is linted", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  // CI sets CI=true; the test sets it too, so a local run checks what CI sees.
+  // The tests here lint some examples more than once in the same process.
+  test("linting it twice in CI gives the same messages, with its types", async () => {
+    vi.stubEnv("CI", "true");
+    const path = "src/data/catalog/destructures-security-events.bad.ts";
+    const expected = [{ ruleId: "no-restricted-syntax", severity: 2 }];
+
+    expect(await lintExample(path)).toEqual(expected);
+    expect(await lintExample(path)).toEqual(expected);
+  });
+});
 
 describe("provider SDKs stay in the infrastructure layer (A6.1)", () => {
   test("importing a provider package outside src/infra is an error", async () => {

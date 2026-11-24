@@ -75,6 +75,12 @@ function restrictImports(...patterns) {
 
 // The rules every file in the repository follows. The root config adds the
 // ignores; the lint example test points `tsconfig` at its own type configuration.
+//
+// That test lints some examples more than once in one process, which is not a
+// single run. Under CI=true typescript-eslint would infer a single CLI run and
+// take a second parse of the same file for an autofix pass, typing it alone,
+// with no imports and no lib, so imported names and even `Promise` would
+// become error types.
 export function baseConfig({ tsconfig } = {}) {
   return [
     ...nextVitals,
@@ -87,7 +93,11 @@ export function baseConfig({ tsconfig } = {}) {
       files: ["**/*.{ts,tsx,mts}"],
       languageOptions: {
         parserOptions: tsconfig
-          ? { project: tsconfig, tsconfigRootDir: dirname(tsconfig) }
+          ? {
+              project: tsconfig,
+              tsconfigRootDir: dirname(tsconfig),
+              disallowAutomaticSingleRunInference: true,
+            }
           : { projectService: true },
       },
       // Section 9.6: an `any` (the result of `request.json()`, for one) cannot
