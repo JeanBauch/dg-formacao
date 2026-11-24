@@ -149,9 +149,8 @@ export async function recordSecurityEvent(
   if (overflow === null) return addToRow(row);
   if (overflow.dayHadOverflow) return addToRow(overflow.row);
   if (await addToFirstOverflow(overflow.row, at)) {
-    telemetry.warn("security-log-daily-cap-reached", {
-      cap: env.SECURITY_EVENTS_DAILY_CAP,
-      day: utcDay(at),
-    });
+    // Only the day: the cap comes from the environment, which stays out of the
+    // log, and whoever reads the warning has the configuration.
+    telemetry.warn("security-log-daily-cap-reached", { day: utcDay(at) });
   }
 }

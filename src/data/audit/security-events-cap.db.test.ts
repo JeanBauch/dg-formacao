@@ -374,7 +374,7 @@ describe("above the day's cap (A5.14)", () => {
 describe("the warning of the cap (A5.14)", () => {
   const reached = {
     name: "security-log-daily-cap-reached",
-    context: { cap: 3, day: "2026-11-24" },
+    context: { day: "2026-11-24" },
   };
 
   test("does not go out while the day's rows are at the cap or below it", async () => {
@@ -426,7 +426,7 @@ describe("the warning of the cap (A5.14)", () => {
 
     expect(fake.warnings).toEqual([
       reached,
-      { ...reached, context: { cap: 3, day: "2026-11-25" } },
+      { ...reached, context: { day: "2026-11-25" } },
     ]);
     // Every event of the floods is counted.
     expect(
@@ -450,7 +450,7 @@ describe("the warning of the cap (A5.14)", () => {
 
     expect(fake.warnings).toEqual([
       reached,
-      { ...reached, context: { cap: 3, day: "2026-11-25" } },
+      { ...reached, context: { day: "2026-11-25" } },
     ]);
   });
 });
