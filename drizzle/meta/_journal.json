@@ -36,6 +36,20 @@
       "when": 1795526355840,
       "tag": "0004_add-one-holder-profile-index",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1795549847551,
+      "tag": "0005_create-security-events",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1795550818343,
+      "tag": "0006_create-audit-log",
+      "breakpoints": true
     }
   ]
 }

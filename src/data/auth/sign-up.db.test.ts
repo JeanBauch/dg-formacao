@@ -10,6 +10,7 @@ import {
   vi,
 } from "vitest";
 import { auth } from "@/data/auth";
+import { columnTypes } from "@/test/db/column-types";
 import { connect, testDatabase } from "@/test/db/test-database";
 import { nextTestIp } from "@/test/ip";
 
@@ -395,9 +396,7 @@ describe("the user's ID (A2.6)", () => {
   });
 
   test("is text, as the Better Auth CLI generates it, and so is every key to the user", async () => {
-    const [{ type }] = await owner<{ type: string }[]>`
-      select format_type(atttypid, atttypmod) as type from pg_attribute
-      where attrelid = 'app."user"'::regclass and attname = 'id'`;
+    const { id: type } = await columnTypes(owner, 'app."user"');
     const keys = await owner<{ table: string; type: string }[]>`
       select c.conrelid::regclass::text as table,
         format_type(a.atttypid, a.atttypmod) as type

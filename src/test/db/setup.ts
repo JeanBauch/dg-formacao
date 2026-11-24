@@ -63,6 +63,10 @@ async function recreateTestDatabase() {
   try {
     await server`drop database if exists ${server(testDatabaseName)} with (force)`;
     await server`create database ${server(testDatabaseName)}`;
+    // The test database is recreated on every run, so a commit need not wait
+    // for the disk, which takes about 80 ms on Docker Desktop: the attack of
+    // NF-5 alone commits 5,000 times. Locks and visibility stay the same.
+    await server`alter database ${server(testDatabaseName)} set synchronous_commit = off`;
   } finally {
     await server.end();
   }

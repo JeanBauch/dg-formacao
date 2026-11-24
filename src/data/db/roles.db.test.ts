@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { resolve } from "node:path";
 import { promisify } from "node:util";
+import { v7 as uuidv7 } from "uuid";
 import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 import { applyRolesAndMigrations } from "@/test/db/setup";
 import { connect, testDatabase } from "@/test/db/test-database";
@@ -18,9 +19,21 @@ vi.setConfig({ testTimeout: 60_000 });
 const admin = connect(testDatabase.adminUrl);
 const app = connect(testDatabase.appUrl);
 const migrations = connect(testDatabase.migrationsUrl);
+const readonly = connect(testDatabase.readonlyUrl);
 
 afterAll(async () => {
-  await Promise.all([admin.end(), app.end(), migrations.end()]);
+  try {
+    // The audit rows the application role wrote, which only the migrations
+    // role can delete (A1.12).
+    await migrations`truncate app.audit_log`;
+  } finally {
+    await Promise.all([
+      admin.end(),
+      app.end(),
+      migrations.end(),
+      readonly.end(),
+    ]);
+  }
 });
 
 const refused = { code: "42501" }; // insufficient_privilege
@@ -73,6 +86,99 @@ describe("the application role (A1.2)", () => {
     await expect(
       app`delete from app.__drizzle_migrations`,
     ).rejects.toMatchObject(refused);
+  });
+});
+
+describe("the application role and the audit log (A1.12)", () => {
+  async function insertAuditRow() {
+    const id = uuidv7();
+    await app`
+      insert into app.audit_log
+        (id, actor_user_id, action, entity, entity_id, diff)
+      values (${id}, ${uuidv7()}, 'staff_invited', 'user', ${uuidv7()},
+        ${app.json({ before: null, after: { role: "instructor" } })})`;
+    return id;
+  }
+
+  test("inserts and reads an audit row", async () => {
+    const id = await insertAuditRow();
+
+    expect(
+      await app`select action from app.audit_log where id = ${id}`,
+    ).toEqual([{ action: "staff_invited" }]);
+  });
+
+  test("cannot change, delete or truncate an audit row", async () => {
+    const id = await insertAuditRow();
+
+    await expect(
+      app`update app.audit_log set action = 'changed' where id = ${id}`,
+    ).rejects.toMatchObject(refused);
+    await expect(
+      app`delete from app.audit_log where id = ${id}`,
+    ).rejects.toMatchObject(refused);
+    await expect(app`truncate app.audit_log`).rejects.toMatchObject(refused);
+    expect(
+      await migrations`select action from app.audit_log where id = ${id}`,
+    ).toEqual([{ action: "staff_invited" }]);
+  });
+});
+
+describe("the read-only role (A1.3, A5.8)", () => {
+  const logs = ["audit_log", "security_events"];
+
+  // Every table of app, as the administrator sees them: the ones that exist
+  // now and any a later migration adds.
+  async function appTables() {
+    const tables = await admin<{ name: string }[]>`
+      select tablename as name from pg_tables where schemaname = 'app'
+      order by tablename`;
+    return tables.map(({ name }) => name);
+  }
+
+  test.each(logs)("reads the %s table", async (table) => {
+    await readonly`select * from app.${readonly(table)}`;
+  });
+
+  test("cannot read any other table of app, Better Auth's tables with secrets included", async () => {
+    const others = (await appTables()).filter((name) => !logs.includes(name));
+
+    expect(others).toEqual(
+      expect.arrayContaining([
+        "user",
+        "account",
+        "session",
+        "verification",
+        "rate_limit",
+      ]),
+    );
+    for (const table of others) {
+      await expect(
+        readonly`select * from app.${readonly(table)}`,
+        table,
+      ).rejects.toMatchObject(refused);
+    }
+  });
+
+  test("cannot insert, change or delete a row of any table of app, the two logs included", async () => {
+    for (const table of await appTables()) {
+      const [{ column }] = await admin<{ column: string }[]>`
+        select attname as column from pg_attribute
+        where attrelid = ${`app."${table}"`}::regclass and attnum = 1`;
+      const name = readonly(table);
+      await expect(
+        readonly`insert into app.${name} default values`,
+        `insert into ${table}`,
+      ).rejects.toMatchObject(refused);
+      await expect(
+        readonly`update app.${name} set ${readonly(column)} = ${readonly(column)}`,
+        `update ${table}`,
+      ).rejects.toMatchObject(refused);
+      await expect(
+        readonly`delete from app.${name}`,
+        `delete from ${table}`,
+      ).rejects.toMatchObject(refused);
+    }
   });
 });
 

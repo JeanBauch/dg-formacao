@@ -114,6 +114,13 @@ const part2Statements = [
   // Per-table exceptions, which run after the grants above. The log of applied
   // migrations belongs to the migrations role alone.
   `revoke all on table app.__drizzle_migrations from ${roles.app}`,
+  // The audit log is append-only: the application inserts and reads it, and
+  // never changes or deletes a row (A1.12).
+  `revoke update, delete on table app.audit_log from ${roles.app}`,
+  // The read-only role reads the security log and the audit log, and nothing
+  // else (A1.3, A5.8).
+  `grant select on table app.security_events, app.audit_log
+    to ${roles.readonly}`,
 ];
 
 async function part2() {

@@ -2,7 +2,7 @@
 import { resolve } from "node:path";
 import { ESLint } from "eslint";
 import ts from "typescript";
-import { describe, expect, test, vi } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { baseConfig } from "../../eslint.base.mjs";
 
 // Every test runs type-aware ESLint, which is slow on a cold CI runner.
@@ -33,6 +33,27 @@ async function lintErrorTexts(path: string) {
   const [result] = await eslint.lintFiles([path]);
   return result.messages.map((message) => message.message);
 }
+
+// The repository's own lint, over the real code.
+const repoRoot = resolve(import.meta.dirname, "../..");
+const repoEslint = new ESLint({ cwd: repoRoot });
+
+describe("an example lints the same however often it is linted", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  // CI sets CI=true; the test sets it too, so a local run checks what CI sees.
+  // The tests here lint some examples more than once in the same process.
+  test("linting it twice in CI gives the same messages, with its types", async () => {
+    vi.stubEnv("CI", "true");
+    const path = "src/data/catalog/destructures-security-events.bad.ts";
+    const expected = [{ ruleId: "no-restricted-syntax", severity: 2 }];
+
+    expect(await lintExample(path)).toEqual(expected);
+    expect(await lintExample(path)).toEqual(expected);
+  });
+});
 
 describe("provider SDKs stay in the infrastructure layer (A6.1)", () => {
   test("importing a provider package outside src/infra is an error", async () => {
@@ -206,10 +227,101 @@ describe("raw HTML is forbidden (A6.6)", () => {
   });
 });
 
-describe("the examples stay out of the repository checks (A6.7)", () => {
-  const repoRoot = resolve(import.meta.dirname, "../..");
-  const repoEslint = new ESLint({ cwd: repoRoot });
+describe("only the audit module writes the security log, and nothing reads it but the purge (A5.6)", () => {
+  test("the table, its relational query and its name in SQL are errors in another module", async () => {
+    const texts = await lintErrorTexts(
+      "src/data/catalog/reads-security-events.bad.ts",
+    );
 
+    expect(texts).toEqual(
+      Array(4).fill(expect.stringContaining("security log")),
+    );
+    expect(
+      await lintExample("src/data/catalog/reads-security-events.bad.ts"),
+    ).toEqual(Array(4).fill({ ruleId: "no-restricted-syntax", severity: 2 }));
+  });
+
+  test.each([
+    [
+      "the table destructured from the schema",
+      "src/data/catalog/destructures-security-events.bad.ts",
+    ],
+    [
+      "the table destructured by a computed key",
+      "src/data/catalog/destructures-computed-security-events.bad.ts",
+    ],
+    [
+      "the table as a computed member of the schema",
+      "src/data/catalog/computed-security-events.bad.ts",
+    ],
+    [
+      "the table as a computed member written as a template",
+      "src/data/catalog/computed-template-security-events.bad.ts",
+    ],
+    [
+      "its relational query as a computed member",
+      "src/data/catalog/computed-query-security-events.bad.ts",
+    ],
+    [
+      "the table re-exported under another name",
+      "src/data/catalog/reexports-security-events.bad.ts",
+    ],
+  ])("%s is an error in another module", async (_, path) => {
+    expect(await lintErrorTexts(path)).toEqual([
+      expect.stringContaining("security log"),
+    ]);
+    expect(await lintExample(path)).toEqual([
+      { ruleId: "no-restricted-syntax", severity: 2 },
+    ]);
+  });
+
+  test("a read in another file of the audit module is an error", async () => {
+    const messages = await lintExample(
+      "src/data/audit/reads-security-events.bad.ts",
+    );
+
+    expect(messages).toEqual([{ ruleId: "no-restricted-syntax", severity: 2 }]);
+  });
+
+  test("the one file of the audit module that writes it passes", async () => {
+    const messages = await lintExample("src/data/audit/security-events.ts");
+
+    expect(messages).toEqual([]);
+  });
+
+  // A file of the real code that names the table in SQL. The real code may hold
+  // JavaScript files too (allowJs).
+  function lintRealFile(path: string) {
+    return repoEslint.lintText(
+      `export const query = "select ip from app.security_events";
+`,
+      { filePath: resolve(repoRoot, path) },
+    );
+  }
+
+  test.each(["src/app/page.tsx", "src/data/auth/probe.js"])(
+    "the rule applies to the real code, in %s",
+    async (path) => {
+      const [file] = await lintRealFile(path);
+
+      expect(file.messages.map((m) => m.ruleId)).toEqual([
+        "no-restricted-syntax",
+      ]);
+    },
+  );
+
+  // The TypeScript test exists, as the type-aware parser needs.
+  test.each([
+    "src/data/audit/security-events.db.test.ts",
+    "src/data/auth/probe.test.js",
+  ])("a test of the real code reads it, in %s", async (path) => {
+    const [file] = await lintRealFile(path);
+
+    expect(file.messages).toEqual([]);
+  });
+});
+
+describe("the examples stay out of the repository checks (A6.7)", () => {
   test("the repository lint ignores the example files", async () => {
     const ignored = await repoEslint.isPathIgnored(
       resolve(examplesDir, "src/data/auth/provider-import.bad.ts"),
