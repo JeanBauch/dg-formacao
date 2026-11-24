@@ -44,17 +44,28 @@ function internalImportPattern(other) {
   };
 }
 
-// A5.6: nothing in the app but the audit module reads the security log, the
-// only place with the client's IP (RNF-SEG-15). The audit module writes it and
-// its purge deletes from it; the schema defines it, and tests read it.
-const securityLogMessage =
-  "Only the audit module reaches the security log: record events through its public interface; nothing else reads it (A5.6).";
-const securityLogReads = [
+// A5.6: only the audit module writes the security log (registro de segurança),
+// the only place with the client's IP (RNF-SEG-15), and nothing reads it but
+// the purge. One file of the audit module writes it, the schema defines it, and
+// tests read it; the purge's ticket adds the purge's own file to these.
+const securityEventsWriter = "src/data/audit/security-events.ts";
+const securityEventsMessage =
+  "Only the audit module writes the security log, and nothing reads it but the purge: record events through the audit module's public interface (A5.6).";
+const securityEventsReads = [
+  // The table object, imported or re-exported...
   "ImportSpecifier[imported.name='securityEvents']",
+  "ExportSpecifier[local.name='securityEvents']",
+  // ...or taken by its name from the schema or the relational queries, as a
+  // member or by destructuring...
   "MemberExpression[property.name='securityEvents']",
+  "ObjectPattern > Property[key.name='securityEvents']",
+  // ...or by the same name as a computed key, in a string or a template.
+  "Literal[value='securityEvents']",
+  "TemplateElement[value.raw='securityEvents']",
+  // The table's name in raw SQL, as a template or as a string.
   "TemplateElement[value.raw=/security_events/]",
   "Literal[value=/security_events/]",
-].map((selector) => ({ selector, message: securityLogMessage }));
+].map((selector) => ({ selector, message: securityEventsMessage }));
 
 // `no-restricted-imports` replaces its options in each matching config block, so
 // every block lists the complete set that applies to its files.
@@ -93,14 +104,14 @@ export function baseConfig({ tsconfig } = {}) {
     // Section 9.12.1: imports between modules do not form a cycle.
     { rules: { "import/no-cycle": "error" } },
     {
-      files: ["src/**/*.{ts,tsx,mts}"],
+      files: ["src/**/*.{ts,tsx,mts,js,jsx,mjs}"],
       ignores: [
-        "src/data/audit/**",
+        securityEventsWriter,
         "src/data/db/schema/**",
-        "src/**/*.test.{ts,tsx}",
+        "src/**/*.test.{ts,tsx,mts,js,jsx,mjs}",
         "src/test/**",
       ],
-      rules: { "no-restricted-syntax": ["error", ...securityLogReads] },
+      rules: { "no-restricted-syntax": ["error", ...securityEventsReads] },
     },
     {
       files: ["**/*.{ts,tsx,mts,js,jsx,mjs}"],

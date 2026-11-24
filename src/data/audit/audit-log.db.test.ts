@@ -3,6 +3,7 @@ import { afterAll, beforeEach, describe, expect, test } from "vitest";
 import { recordAuditEntry } from "@/data/audit";
 import { db } from "@/data/db/client";
 import type { AuditEntry } from "@/domain/audit";
+import { columnTypes } from "@/test/db/column-types";
 import { connect, testDatabase } from "@/test/db/test-database";
 
 // Seam 2: the audit module's public interface, over the test database, as the
@@ -68,19 +69,12 @@ describe("an audit row (RNF-OBS-10)", () => {
   });
 
   test("keeps the actor in the type of the user's ID, text (A2.6)", async () => {
-    const types = await owner<{ column: string; type: string }[]>`
-      select attrelid::regclass::text || '.' || attname as column,
-        format_type(atttypid, atttypmod) as type
-      from pg_attribute
-      where (attrelid, attname) in (('app."user"'::regclass, 'id'),
-        ('app.audit_log'::regclass, 'actor_user_id'))`;
-
     // The type of the user's ID that A2.6 recorded.
-    expect(
-      Object.fromEntries(types.map(({ column, type }) => [column, type])),
-    ).toEqual({
-      "app.audit_log.actor_user_id": "text",
-      'app."user".id': "text",
+    expect(await columnTypes(owner, 'app."user"')).toMatchObject({
+      id: "text",
+    });
+    expect(await columnTypes(owner, "app.audit_log")).toMatchObject({
+      actor_user_id: "text",
     });
   });
 });

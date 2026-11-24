@@ -22,10 +22,18 @@ const migrations = connect(testDatabase.migrationsUrl);
 const readonly = connect(testDatabase.readonlyUrl);
 
 afterAll(async () => {
-  // The audit rows the application role wrote, which only the migrations role
-  // can delete (A1.12).
-  await migrations`truncate app.audit_log`;
-  await Promise.all([admin.end(), app.end(), migrations.end(), readonly.end()]);
+  try {
+    // The audit rows the application role wrote, which only the migrations
+    // role can delete (A1.12).
+    await migrations`truncate app.audit_log`;
+  } finally {
+    await Promise.all([
+      admin.end(),
+      app.end(),
+      migrations.end(),
+      readonly.end(),
+    ]);
+  }
 });
 
 const refused = { code: "42501" }; // insufficient_privilege

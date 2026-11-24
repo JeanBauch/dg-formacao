@@ -2,8 +2,8 @@
 export { auditDiff } from "./audit-log";
 export type { AuditEntry } from "./audit-log";
 export {
+  securityEventRow,
   securityEventTypes,
-  securityLogRow,
   userAgentMaxLength,
-} from "./security-log";
-export type { SecurityEvent } from "./security-log";
+} from "./security-events";
+export type { SecurityEvent } from "./security-events";

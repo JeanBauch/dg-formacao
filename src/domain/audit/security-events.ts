@@ -141,36 +141,41 @@ function ipv6Groups(ip: string) {
   );
 }
 
-// The client's IP range, the one Better Auth's rate limit counts by, in the
-// same form: an IPv4 address whole, an IPv4-mapped IPv6 address as its IPv4,
-// and any other IPv6 address by its /64 network, with every group written in
-// full. Null for a value that is not an IP.
-function ipRange(ip: string) {
-  if (ipv4.safeParse(ip).success) return ip;
-  if (!ipv6.safeParse(ip).success) return null;
+// The client's full IP as the row keeps it, and its range, the one Better
+// Auth's rate limit counts by, in the same form. An IPv4 address is both,
+// whole. An IPv4-mapped IPv6 address is its IPv4 in both: the same address,
+// which a search by the IPv4 finds, as inet never matches an IPv4 address with
+// an IPv6 one. Any other IPv6 address is kept as the request sent it, and its
+// range is its /64 network, with every group written in full. Both are empty
+// when there is no IP or the value is not one (A5.11).
+function clientIp(ip: string | null) {
+  if (ip !== null && ipv4.safeParse(ip).success) return { ip, range: ip };
+  if (ip === null || !ipv6.safeParse(ip).success)
+    return { ip: null, range: null };
   const groups = ipv6Groups(ip);
-  if (groups.slice(0, 5).every((group) => group === 0) && groups[5] === 0xffff)
-    return [groups[6] >> 8, groups[6] & 255, groups[7] >> 8, groups[7] & 255]
-      .map(String)
-      .join(".");
-  return [...groups.slice(0, 4), 0, 0, 0, 0]
+  if (
+    groups.slice(0, 5).every((group) => group === 0) &&
+    groups[5] === 0xffff
+  ) {
+    const mapped = [
+      groups[6] >> 8,
+      groups[6] & 255,
+      groups[7] >> 8,
+      groups[7] & 255,
+    ].join(".");
+    return { ip: mapped, range: mapped };
+  }
+  const range = [...groups.slice(0, 4), 0, 0, 0, 0]
     .map((group) => group.toString(16).padStart(4, "0"))
     .join(":");
-}
-
-// The client's IP as the row keeps it: the full address, as the request sent
-// it, and its range; both empty when there is no IP or the value is not one
-// (A5.11).
-function clientIp(ip: string | null) {
-  const range = ip === null ? null : ipRange(ip);
-  return { ip: range === null ? null : ip, range };
+  return { ip, range };
 }
 
 // The row of the security log that an occurrence at this instant counts in
 // (A5.3): the key of the row, and the values it keeps from its first
 // occurrence. An empty part of the key is written as "-", and the minute is
 // the UTC one, as in 2026-11-24T13:05.
-export function securityLogRow(occurrence: SecurityEvent, at: Date) {
+export function securityEventRow(occurrence: SecurityEvent, at: Date) {
   const { ip, range } = clientIp(occurrence.ip);
   const route = routePattern(occurrence.route);
   const minute = at.toISOString().slice(0, 16);

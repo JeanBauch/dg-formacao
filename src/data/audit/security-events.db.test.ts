@@ -10,6 +10,7 @@ import {
 } from "vitest";
 import { recordSecurityEvent } from "@/data/audit";
 import type { SecurityEvent } from "@/domain/audit";
+import { columnTypes } from "@/test/db/column-types";
 import { connect, testDatabase } from "@/test/db/test-database";
 import { nextTestIp } from "@/test/ip";
 
@@ -78,23 +79,14 @@ describe("the security log's events (A5.1)", () => {
   });
 
   test("keep the user in the type of the user's ID, text, the full IP in inet and up to 256 characters of user agent", async () => {
-    const types = await owner<{ column: string; type: string }[]>`
-      select attrelid::regclass::text || '.' || attname as column,
-        format_type(atttypid, atttypmod) as type
-      from pg_attribute
-      where (attrelid, attname) in (('app."user"'::regclass, 'id'),
-        ('app.security_events'::regclass, 'user_id'),
-        ('app.security_events'::regclass, 'ip'),
-        ('app.security_events'::regclass, 'user_agent'))`;
-
     // The user's ID has the type that A2.6 recorded.
-    expect(
-      Object.fromEntries(types.map(({ column, type }) => [column, type])),
-    ).toEqual({
-      "app.security_events.ip": "inet",
-      "app.security_events.user_agent": "character varying(256)",
-      "app.security_events.user_id": "text",
-      'app."user".id': "text",
+    expect(await columnTypes(owner, 'app."user"')).toMatchObject({
+      id: "text",
+    });
+    expect(await columnTypes(owner, "app.security_events")).toMatchObject({
+      user_id: "text",
+      ip: "inet",
+      user_agent: "character varying(256)",
     });
   });
 
@@ -138,24 +130,30 @@ describe("the security log's events (A5.1)", () => {
 
 describe("a row of the security log has a fixed size (A5.13)", () => {
   // What every occurrence below shares: no user, so only the event and its
-  // details tell the rows apart.
-  const anonymous = {
-    userId: null,
-    ip: "192.0.2.1",
-    userAgent: null,
-    route: "/sign-in/email",
-  };
+  // details tell the rows apart. Each one comes from its own simulated IP.
+  function anonymous() {
+    return {
+      userId: null,
+      ip: nextTestIp(),
+      userAgent: null,
+      route: "/sign-in/email",
+    };
+  }
 
   test.each<[string, SecurityEvent, unknown]>([
     [
       "the reason of a failed sign-in",
-      { ...anonymous, event: "sign_in_failed", reason: "invalid_credentials" },
+      {
+        ...anonymous(),
+        event: "sign_in_failed",
+        reason: "invalid_credentials",
+      },
       { reason: "invalid_credentials" },
     ],
     [
       "the reason of a staff sign-in refused for a short password",
       {
-        ...anonymous,
+        ...anonymous(),
         event: "sign_in_failed",
         reason: "staff_password_too_short",
       },
@@ -163,42 +161,42 @@ describe("a row of the security log has a fixed size (A5.13)", () => {
     ],
     [
       "the status of a 404 refusal",
-      { ...anonymous, event: "access_denied", status: 404 },
+      { ...anonymous(), event: "access_denied", status: 404 },
       { status: 404 },
     ],
     [
       "the status of a 403 refusal",
-      { ...anonymous, event: "access_denied", status: 403 },
+      { ...anonymous(), event: "access_denied", status: 403 },
       { status: 403 },
     ],
     [
       "the level of an account lockout",
-      { ...anonymous, event: "account_locked", lockMinutes: 15 },
+      { ...anonymous(), event: "account_locked", lockMinutes: 15 },
       { lockMinutes: 15 },
     ],
     [
       "nothing for a successful sign-in",
-      { ...anonymous, event: "sign_in_succeeded" },
+      { ...anonymous(), event: "sign_in_succeeded" },
       null,
     ],
     [
       "nothing for a staff sign-in",
-      { ...anonymous, event: "staff_sign_in_succeeded" },
+      { ...anonymous(), event: "staff_sign_in_succeeded" },
       null,
     ],
     [
       "nothing for a password reset request",
-      { ...anonymous, event: "password_reset_requested" },
+      { ...anonymous(), event: "password_reset_requested" },
       null,
     ],
     [
       "nothing for a completed password reset",
-      { ...anonymous, event: "password_reset_completed" },
+      { ...anonymous(), event: "password_reset_completed" },
       null,
     ],
     [
       "nothing for a rate-limit block",
-      { ...anonymous, event: "rate_limited" },
+      { ...anonymous(), event: "rate_limited" },
       null,
     ],
   ])("whose details hold %s", async (_, occurrence, details) => {
@@ -215,7 +213,7 @@ describe("a row of the security log has a fixed size (A5.13)", () => {
     const userAgent = `${"M".repeat(255)}😀${"x".repeat(7_936)}`;
 
     await recordSecurityEvent({
-      ...anonymous,
+      ...anonymous(),
       event: "sign_in_succeeded",
       userAgent,
     });
@@ -238,7 +236,7 @@ describe("a row of the security log has a fixed size (A5.13)", () => {
       "other",
     ],
   ])("whose route keeps %s", async (_, route, stored) => {
-    await recordSecurityEvent({ ...anonymous, event: "rate_limited", route });
+    await recordSecurityEvent({ ...anonymous(), event: "rate_limited", route });
 
     expect(await storedEvents()).toEqual([
       expect.objectContaining({ route: stored }),
@@ -248,7 +246,7 @@ describe("a row of the security log has a fixed size (A5.13)", () => {
   test("whose details leave out anything else the occurrence carries", async () => {
     // An e-mail that reached the call by mistake, as from an untyped caller.
     const occurrence = {
-      ...anonymous,
+      ...anonymous(),
       event: "sign_in_failed",
       reason: "invalid_credentials",
       email: "titular@example.com",
@@ -263,20 +261,27 @@ describe("a row of the security log has a fixed size (A5.13)", () => {
 });
 
 describe("the occurrences of an event in a minute (A5.3)", () => {
-  // A failed sign-in of a known user, from one IPv4 address.
+  const holder = uuidv7();
+
+  // The test's own simulated IP, which every occurrence of the test shares.
+  let ip: string;
+
+  beforeEach(() => {
+    ip = nextTestIp();
+  });
+
+  // A failed sign-in of a known user, from the test's IP.
   function failure(change: Partial<SecurityEvent> = {}) {
     return {
       event: "sign_in_failed",
       reason: "invalid_credentials",
       userId: holder,
-      ip: "192.0.2.1",
+      ip,
       userAgent: "Mozilla/5.0 (Navegador Fictício)",
       route: "/sign-in/email",
       ...change,
     } as SecurityEvent;
   }
-
-  const holder = uuidv7();
 
   test("of two users make one row each", async () => {
     const otherUser = uuidv7();
@@ -319,6 +324,29 @@ describe("the occurrences of an event in a minute (A5.3)", () => {
         count: 1,
         first_at: new Date("2026-11-24T13:06:00.000Z"),
         last_at: new Date("2026-11-24T13:06:00.000Z"),
+      },
+    ]);
+  });
+
+  test("recorded out of order keep the earliest time as the first and the latest as the last", async () => {
+    // Two requests of the same minute whose inserts reach the database in the
+    // reverse order of their times.
+    vi.setSystemTime(new Date("2026-11-24T13:05:59.995Z"));
+    await recordSecurityEvent(failure());
+    vi.setSystemTime(new Date("2026-11-24T13:05:59.990Z"));
+    await recordSecurityEvent(failure());
+
+    expect(
+      (await storedEvents()).map(({ count, first_at, last_at }) => ({
+        count,
+        first_at,
+        last_at,
+      })),
+    ).toEqual([
+      {
+        count: 2,
+        first_at: new Date("2026-11-24T13:05:59.990Z"),
+        last_at: new Date("2026-11-24T13:05:59.995Z"),
       },
     ]);
   });
@@ -393,6 +421,19 @@ describe("the occurrences of an event in a minute (A5.3)", () => {
     ]);
   });
 
+  test.each(["::ffff:192.0.2.1", "::ffff:c000:201"])(
+    "from the IPv4-mapped IPv6 address %s keep its IPv4, which a search by the IPv4 finds",
+    async (mapped) => {
+      await recordSecurityEvent(failure({ ip: mapped }));
+
+      expect(
+        await owner`
+          select count from app.security_events
+          where ip = '192.0.2.1' and ip <<= '192.0.2.0/24'`,
+      ).toEqual([{ count: 1 }]);
+    },
+  );
+
   test("from a value that is not an IP make the row of no IP, without failing", async () => {
     await recordSecurityEvent(failure({ ip: "not-an-ip" }));
     await recordSecurityEvent(failure({ ip: null }));
@@ -453,7 +494,7 @@ describe("the occurrences of an event in a minute (A5.3)", () => {
     const blocked = {
       event: "rate_limited",
       userId: null,
-      ip: "198.51.100.7",
+      ip,
       userAgent: null,
       route: "/sign-in/email",
     } as const;
