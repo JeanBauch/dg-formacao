@@ -61,13 +61,19 @@ export async function recordHolder(
     // The account committed before this hook ran (A2.12), so it would be left
     // without its holder's profile and its consents: delete it, and the
     // database deletes its login identity and session with it (A2.13). The
-    // cleanup of A2.14 covers a process that dies before this point.
-    await db.delete(user).where(eq(user.id, newUser.id));
+    // cleanup of A2.14 covers a process that dies before this point, and a
+    // deletion that fails too.
+    let deletion = "the new user was deleted";
+    try {
+      await db.delete(user).where(eq(user.id, newUser.id));
+    } catch (deletionError) {
+      deletion = `deleting the new user failed too: ${loggable(deletionError)}`;
+    }
     // The sign-up already set the cookie of that session; the error answer
     // carries the response headers, so the cookie goes too.
     context?.responseHeaders?.delete("set-cookie");
     context?.context.logger.error(
-      `Sign-up failed recording the holder's profile and consents; the new account was deleted: ${loggable(error)}`,
+      `Sign-up failed recording the holder's profile and consents: ${loggable(error)}; ${deletion}`,
     );
     throw APIError.from("INTERNAL_SERVER_ERROR", {
       code: "SIGN_UP_FAILED",

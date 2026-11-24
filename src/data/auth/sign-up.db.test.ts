@@ -1,5 +1,14 @@
+import { format } from "node:util";
 import { v7 as uuidv7 } from "uuid";
-import { afterAll, afterEach, beforeAll, describe, expect, test } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  test,
+  vi,
+} from "vitest";
 import { auth } from "@/data/auth";
 import { connect, testDatabase } from "@/test/db/test-database";
 import { nextTestIp } from "@/test/ip";
@@ -78,6 +87,23 @@ function signUp(body: Record<string, unknown>, ip = nextTestIp()) {
       body: JSON.stringify(body),
     }),
   );
+}
+
+// A sign-up's answer and everything printed while it ran, as one text: Better
+// Auth's logger, which the hook logs through, prints to the console.
+async function signUpLogged(body: Record<string, unknown>) {
+  const printed: string[] = [];
+  const spies = (["error", "warn", "info", "log"] as const).map((level) =>
+    vi.spyOn(console, level).mockImplementation((...args) => {
+      printed.push(format(...args));
+    }),
+  );
+  try {
+    const response = await signUp(body);
+    return { response, log: printed.join("\n") };
+  } finally {
+    for (const spy of spies) spy.mockRestore();
+  }
 }
 
 describe("a valid sign-up (A2.1)", () => {
@@ -340,6 +366,10 @@ const failingWrites = {
   consents: "Falha no Consentimento",
 };
 
+// A user whose profile write fails and whose deletion is refused too, as when
+// the connection drops before the hook deletes the user.
+const failingDeletion = "Falha na Exclusão";
+
 async function addProbes() {
   await owner`create sequence app.test_profile_writes`;
   await owner`grant usage on sequence app.test_profile_writes to dg_app`;
@@ -364,6 +394,7 @@ async function addProbes() {
       if (tg_table_name, holder) in (
         ('account', '${failingWrites.account}'),
         ('profiles', '${failingWrites.profiles}'),
+        ('profiles', '${failingDeletion}'),
         ('consents', '${failingWrites.consents}')
       ) then
         raise exception 'simulated failure writing %', tg_table_name;
@@ -374,12 +405,24 @@ async function addProbes() {
     await owner.unsafe(`create trigger test_probe before insert on app.${table}
       for each row execute function app.test_probe()`);
   }
+  await owner.unsafe(`
+    create function app.test_refuse_deletion() returns trigger language plpgsql as $$
+    begin
+      if old.name = '${failingDeletion}' then
+        raise exception 'simulated failure deleting the user';
+      end if;
+      return old;
+    end $$`);
+  await owner`create trigger test_refuse_deletion before delete on app."user"
+    for each row execute function app.test_refuse_deletion()`;
 }
 
 async function removeProbes() {
   for (const table of Object.keys(failingWrites)) {
     await owner.unsafe(`drop trigger if exists test_probe on app.${table}`);
   }
+  await owner`drop trigger if exists test_refuse_deletion on app."user"`;
+  await owner`drop function if exists app.test_refuse_deletion()`;
   await owner`drop function if exists app.test_probe()`;
   await owner`drop sequence if exists app.test_profile_writes`;
 }
@@ -442,6 +485,28 @@ describe("a failure in the after-hook of account creation (A2.13)", () => {
       expect(await storedRows()).toEqual(before);
     },
   );
+
+  test("when deleting the new user fails too, the sign-up still answers its error without a session, and the log records both failures", async () => {
+    const form = { ...holder(), name: failingDeletion };
+
+    try {
+      const { response, log } = await signUpLogged(form);
+
+      expect(response.status).toBe(500);
+      expect(await response.json()).toMatchObject({ code: "SIGN_UP_FAILED" });
+      expect(response.headers.getSetCookie()).toEqual([]);
+      expect(log).toMatch(
+        /recording the holder's profile and consents: \w+ \(P0001\)/,
+      );
+      expect(log).toMatch(/deleting the new user failed too: \w+ \(P0001\)/);
+    } finally {
+      // The user the refused deletion leaves behind is for the cleanup of
+      // A2.14. Removed here, after its name stops matching the probe, so the
+      // invariant of A2.2 holds for the scenarios that follow.
+      await owner`update app."user" set name = 'Removida' where email = ${form.email}`;
+      await owner`delete from app."user" where email = ${form.email}`;
+    }
+  });
 });
 
 describe("the writes of a sign-up (NF-3)", () => {
