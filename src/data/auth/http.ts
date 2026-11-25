@@ -1,7 +1,8 @@
 import "server-only";
 import { recordSecurityEvent } from "@/data/audit";
-import { clientOf } from "./client";
+import { routePattern } from "@/domain/audit";
 import { loggable } from "./loggable";
+import { requesterOf } from "./requester";
 
 // Where Better Auth's router serves its routes.
 export const authBasePath = "/api/auth";
@@ -73,13 +74,35 @@ function isSocialCallback(route: string) {
 
 const notFound = () => new Response("Not Found", { status: 404 });
 
-// The route of a request as Better Auth names it: its path without the base
-// path.
+// Whether a page of another site made the visitor's browser send this request:
+// the browser marks it so in `Sec-Fetch-Site`, and the page cannot change the
+// mark. A request no browser sent, such as a server's or curl's, has none.
+function sentFromAnotherSite(request: Request) {
+  return request.headers.get("sec-fetch-site") === "cross-site";
+}
+
+// Whether this request is a link of an e-mail opened in the browser's tab,
+// which a webmail opens as a navigation from another site: a GET of the e-mail
+// verification or of the password reset's link, as the page itself
+// (`Sec-Fetch-Dest: document`). Loaded as an image or in a frame, it is not.
+function opensFromAnEmail(request: Request, route: string) {
+  return (
+    request.method === "GET" &&
+    request.headers.get("sec-fetch-dest") === "document" &&
+    (route === "/verify-email" || /^\/reset-password\/[^/]+$/.test(route))
+  );
+}
+
+const forbidden = () => new Response("Forbidden", { status: 403 });
+
+// The route of a request as Better Auth's rate limit and disabled paths name
+// it: its path without the base path and without trailing slashes, or "/".
 function routeOf(request: Request) {
-  const { pathname } = new URL(request.url);
-  return pathname.startsWith(`${authBasePath}/`)
+  const pathname = new URL(request.url).pathname.replace(/\/+$/, "");
+  const route = pathname.startsWith(`${authBasePath}/`)
     ? pathname.slice(authBasePath.length)
     : pathname;
+  return route || "/";
 }
 
 // Whether a response is the rate limit's refusal, which Better Auth's router
@@ -100,15 +123,15 @@ type BetterAuthHttp = {
 type LogError = (message: string) => Promise<void>;
 
 // Records a request the rate limit refused: a rate_limited row with the route
-// and the client as the request sent itself, and no account, since nothing of
-// the request was read (A5.1, A5.2).
+// and the requester as the request sent itself, and no account, since nothing
+// of the request was read (A5.1, A5.2).
 async function recordRateLimited(request: Request, logError: LogError) {
   try {
     await recordSecurityEvent({
       event: "rate_limited",
       userId: null,
       route: routeOf(request),
-      ...clientOf(request.headers),
+      ...requesterOf(request.headers),
     });
   } catch (error) {
     // The request stays refused: a refusal the log missed is still a refusal.
@@ -123,12 +146,21 @@ async function recordRateLimited(request: Request, logError: LogError) {
 // Better Auth's HTTP handler as the app serves it (seam 1): only the routes the
 // R0 uses answer (A4.17), and the rate limit's refusals, which its router
 // answers before any hook runs, are recorded here.
+//
+// The rate limit counts a request by its route, whatever its method, before
+// Better Auth checks its origin or its body. So a request that a page of
+// another site makes its visitors' browsers send is refused here, before the
+// rate limit, or that page could use up the counter of their shared IP and
+// block their own sign-ins. Only the links of an e-mail open from another site.
 export function servedOverHttp({ handler, $context }: BetterAuthHttp): Handler {
   const logError: LogError = async (message) => {
     (await $context).logger.error(message);
   };
   return async (request) => {
-    if (isSocialCallback(routeOf(request))) return notFound();
+    const route = routeOf(request);
+    if (isSocialCallback(route)) return notFound();
+    if (sentFromAnotherSite(request) && !opensFromAnEmail(request, route))
+      return forbidden();
     let response: Response;
     try {
       response = await handler(request);
@@ -144,6 +176,13 @@ export function servedOverHttp({ handler, $context }: BetterAuthHttp): Handler {
         statusText: "Internal Server Error",
       });
     }
+    // A server error Better Auth answers itself (an APIError) is no longer
+    // logged by its router, which `onAPIError.throw` skips. Its route is named
+    // by its pattern: a path such as the password reset's link carries a token.
+    if (response.status >= 500)
+      await logError(
+        `An auth request to ${routePattern(route)} answered ${response.status}`,
+      );
     if (blockedByRateLimit(response))
       await recordRateLimited(request, logError);
     return response;

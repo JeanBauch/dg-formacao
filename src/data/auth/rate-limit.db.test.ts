@@ -1,4 +1,3 @@
-import { format } from "node:util";
 import {
   afterAll,
   afterEach,
@@ -11,6 +10,7 @@ import {
 } from "vitest";
 import { auth } from "@/data/auth";
 import { testBaseUrl } from "@/test/base-url";
+import { printedDuring } from "@/test/console";
 import { connect, testDatabase } from "@/test/db/test-database";
 import { nextTestIp, nextTestIpv6Network } from "@/test/ip";
 
@@ -137,6 +137,20 @@ describe("the rate limit of the sign-up (A2.11)", () => {
     expect(statuses).toEqual([200, 200, 200, 429]);
     expect(await counter(ip, "/sign-up/email")).toEqual([{ count: 3 }]);
   });
+
+  test("counts each IP apart: another IP still gets its first sign-up through", async () => {
+    const blocked = nextTestIp();
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      await signUpAttempt(blocked);
+    }
+    expect((await signUpAttempt(blocked)).status).toBe(429);
+
+    const other = nextTestIp();
+    const response = await signUpAttempt(other);
+
+    expect(response.status).toBe(200);
+    expect(await counter(other, "/sign-up/email")).toEqual([{ count: 1 }]);
+  });
 });
 
 // The names the rules of the rate limit match a route by are the names of its
@@ -153,6 +167,111 @@ describe("the names of the routes in the rate limit of Better Auth 1.7 (U9)", ()
     await post(route, body, ip);
 
     expect(await counter(ip, route)).toEqual([{ count: 1 }]);
+  });
+});
+
+// A request that a page of another site makes its visitor's browser send, as
+// a form (`fetch` with `mode: "no-cors"`) or as an image. The browser marks it
+// as sent from another site, and the page cannot change that mark.
+function fromAnotherSite(method: string, path: string, ip: string) {
+  return auth.handler(
+    new Request(`${testBaseUrl}/api/auth${path}`, {
+      method,
+      headers: {
+        "sec-fetch-site": "cross-site",
+        "sec-fetch-mode": "no-cors",
+        "sec-fetch-dest": method === "GET" ? "image" : "empty",
+        "x-forwarded-for": ip,
+        "user-agent": "Mozilla/5.0 (Navegador Fictício)",
+        ...(method !== "GET" && {
+          "content-type": "application/x-www-form-urlencoded",
+          origin: "https://outro-site.example",
+        }),
+      },
+      body: method === "GET" ? undefined : "x",
+    }),
+  );
+}
+
+describe("a request a page of another site makes the browser send", () => {
+  test.each([
+    ["a sign-in sent as a form", "POST", "/sign-in/email"],
+    ["a sign-up sent as a form", "POST", "/sign-up/email"],
+    ["a sign-in loaded as an image", "GET", "/sign-in/email"],
+    [
+      "the e-mail verification loaded as an image",
+      "GET",
+      "/verify-email?token=token-ficticio",
+    ],
+  ])(
+    "answers 403 to %s, before the rate limit counts it",
+    async (_, method, path) => {
+      const ip = nextTestIp();
+
+      const response = await fromAnotherSite(method, path, ip);
+
+      expect(response.status).toBe(403);
+      expect(await counter(ip, path.split("?")[0])).toEqual([]);
+    },
+  );
+
+  test("leaves the IP of its visitors free to sign in: after six of them, a sign-in from the app still gets through", async () => {
+    const ip = nextTestIp();
+    for (let attempt = 1; attempt <= 6; attempt += 1) {
+      await fromAnotherSite("POST", "/sign-in/email", ip);
+    }
+
+    const response = await signInAttempt(ip);
+
+    expect(response.status).toBe(401);
+    expect(await counter(ip, "/sign-in/email")).toEqual([{ count: 1 }]);
+  });
+
+  test("of the app's own page goes on, and the rate limit counts it", async () => {
+    const ip = nextTestIp();
+
+    const response = await auth.handler(
+      new Request(`${testBaseUrl}/api/auth/sign-in/email`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          origin: testBaseUrl,
+          "sec-fetch-site": "same-origin",
+          "sec-fetch-mode": "cors",
+          "x-forwarded-for": ip,
+        },
+        body: JSON.stringify({
+          email: "ninguem-cadastrado@example.com",
+          password: "senha-tentada-1",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(401);
+    expect(await counter(ip, "/sign-in/email")).toEqual([{ count: 1 }]);
+  });
+
+  // A link opened from a webmail is a navigation from another site.
+  test.each([
+    ["the e-mail verification", "/verify-email?token=token-ficticio"],
+    [
+      "the password reset",
+      "/reset-password/token-ficticio?callbackURL=/redefinir-senha",
+    ],
+  ])("lets the link of %s, opened from an e-mail, through", async (_, path) => {
+    const response = await auth.handler(
+      new Request(`${testBaseUrl}/api/auth${path}`, {
+        headers: {
+          "sec-fetch-site": "cross-site",
+          "sec-fetch-mode": "navigate",
+          "sec-fetch-dest": "document",
+          "x-forwarded-for": nextTestIp(),
+        },
+      }),
+    );
+
+    expect(response.status).not.toBe(403);
+    expect(response.status).not.toBe(404);
   });
 });
 
@@ -216,23 +335,27 @@ describe("the security log of a request the rate limit blocks (A5.1, A5.2)", () 
       { ip, route: "/sign-up/email", count: 1 },
     ]);
   });
-});
 
-// What `run` returns, and everything printed while it ran, as one text: Better
-// Auth's logger prints to the console.
-async function printedDuring<T>(run: () => Promise<T>) {
-  const printed: string[] = [];
-  const spies = (["error", "warn", "info", "log"] as const).map((level) =>
-    vi.spyOn(console, level).mockImplementation((...args) => {
-      printed.push(format(...args));
-    }),
-  );
-  try {
-    return { result: await run(), printed: printed.join("\n") };
-  } finally {
-    for (const spy of spies) spy.mockRestore();
-  }
-}
+  // The rate limit names a route without its trailing slashes, so the request
+  // spelled with one counts as the sign-in, and is blocked as the sign-in.
+  test("of a sign-in spelled with a trailing slash names the sign-in's route", async () => {
+    const ip = nextTestIp();
+    for (let attempt = 1; attempt <= 5; attempt += 1) {
+      await signInAttempt(ip);
+    }
+
+    const response = await post(
+      "/sign-in/email/",
+      { email: "ninguem-cadastrado@example.com", password: "senha-tentada-1" },
+      ip,
+    );
+
+    expect(response.status).toBe(429);
+    expect(await securityEvents("rate_limited")).toMatchObject([
+      { ip, route: "/sign-in/email", count: 1 },
+    ]);
+  });
+});
 
 describe("a request the rate limit blocks, when its security log write fails", () => {
   // The application role loses the right to add rows to the security log

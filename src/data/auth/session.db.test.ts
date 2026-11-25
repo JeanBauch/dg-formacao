@@ -1,3 +1,4 @@
+import { inspect } from "node:util";
 import {
   afterAll,
   afterEach,
@@ -9,6 +10,7 @@ import {
   vi,
 } from "vitest";
 import { verifySession } from "@/data/auth";
+import { printedDuring } from "@/test/console";
 import { statementsSentDuring } from "@/test/db/statements";
 import { connect, testDatabase } from "@/test/db/test-database";
 import { serveRequestWith, signedInHolder } from "@/test/request";
@@ -77,6 +79,41 @@ describe("the session gate (verifySession)", () => {
     serveRequestWith(holder.cookie);
 
     expect(await verifySession()).toBeNull();
+  });
+});
+
+describe("the session gate when the database fails the session read", () => {
+  // A holder signs in, and then the application role loses the right to read
+  // sessions while each test runs, so the database refuses the session read.
+  let token: string;
+
+  beforeEach(async () => {
+    const holder = await signedInHolder();
+    [{ token }] = await owner<{ token: string }[]>`
+      select token from app.session where user_id = ${holder.userId}`;
+    serveRequestWith(holder.cookie);
+    await owner`revoke select on app.session from dg_app`;
+  });
+
+  afterEach(async () => {
+    await owner`grant select on app.session to dg_app`;
+  });
+
+  // Next.js prints a thrown error with its causes, and the failed query's
+  // error holds its values, the session's token among them.
+  test("throws an error with no cause, and neither it nor the log carries the session's token (RNF-OBS-01)", async () => {
+    const { result: thrown, printed } = await printedDuring(() =>
+      verifySession().then(
+        () => undefined,
+        (error: unknown) => error,
+      ),
+    );
+
+    expect(thrown).toBeInstanceOf(Error);
+    expect((thrown as Error).cause).toBeUndefined();
+    expect(inspect(thrown, { depth: null })).not.toContain(token);
+    expect(printed).toMatch(/Reading the session failed: APIError \(42501\)/);
+    expect(printed).not.toContain(token);
   });
 });
 

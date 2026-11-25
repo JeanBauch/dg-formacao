@@ -1,4 +1,3 @@
-import { format } from "node:util";
 import {
   afterAll,
   afterEach,
@@ -11,6 +10,7 @@ import {
 } from "vitest";
 import { auth } from "@/data/auth";
 import { testBaseUrl } from "@/test/base-url";
+import { printedDuring } from "@/test/console";
 import { cookiesOf } from "@/test/cookies";
 import { columnTypes } from "@/test/db/column-types";
 import { statementsSentDuring } from "@/test/db/statements";
@@ -567,22 +567,6 @@ describe("the work of a sign-in (NF-2)", () => {
     expect(later).toEqual(first);
   });
 });
-
-// What `run` returns, and everything printed while it ran, as one text: Better
-// Auth's logger and its router print to the console.
-async function printedDuring<T>(run: () => Promise<T>) {
-  const printed: string[] = [];
-  const spies = (["error", "warn", "info", "log"] as const).map((level) =>
-    vi.spyOn(console, level).mockImplementation((...args) => {
-      printed.push(format(...args));
-    }),
-  );
-  try {
-    return { result: await run(), printed: printed.join("\n") };
-  } finally {
-    for (const spy of spies) spy.mockRestore();
-  }
-}
 
 describe("a sign-in whose security log write fails", () => {
   // The application role loses the right to add rows to the security log

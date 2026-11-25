@@ -5,8 +5,8 @@ import { z } from "zod";
 import { recordSecurityEvent } from "@/data/audit";
 import { db } from "@/data/db/client";
 import { user } from "@/data/db/schema";
-import { clientOf } from "./client";
 import { loggable } from "./loggable";
+import { requesterOf } from "./requester";
 
 // The e-mail a sign-in tried, once Better Auth has validated the request.
 const signInRequest = z.object({ email: z.string() });
@@ -37,7 +37,7 @@ export const recordSignIn = createAuthMiddleware(async (ctx) => {
   if (ctx.path !== "/sign-in/email") return;
   const signedIn = ctx.context.newSession;
   if (!signedIn && !refusedCredentials(ctx.context.returned)) return;
-  const client = clientOf(ctx.headers ?? ctx.request?.headers);
+  const requester = requesterOf(ctx.headers ?? ctx.request?.headers);
   try {
     await recordSecurityEvent(
       signedIn
@@ -45,14 +45,14 @@ export const recordSignIn = createAuthMiddleware(async (ctx) => {
             event: "sign_in_succeeded",
             userId: signedIn.user.id,
             route: ctx.path,
-            ...client,
+            ...requester,
           }
         : {
             event: "sign_in_failed",
             reason: "invalid_credentials",
             userId: await userIdWithEmail(signInRequest.parse(ctx.body).email),
             route: ctx.path,
-            ...client,
+            ...requester,
           },
     );
   } catch (error) {

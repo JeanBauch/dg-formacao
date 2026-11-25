@@ -78,4 +78,6 @@ const betterAuthInstance = betterAuth({
 // app serves it, which records what the router refuses on its own.
 const handler = servedOverHttp(betterAuthInstance);
 
+// Better Auth 1.7.15 also exposes its handler as `fetch`, an alias of the same
+// function, so both are replaced: the alias would otherwise skip the wrapper.
 export const auth = { ...betterAuthInstance, handler, fetch: handler };

@@ -79,8 +79,9 @@ const routes = [
 ];
 
 // The pattern of the list a route or a received path matches, or "other":
-// never the path itself, which could carry a token or personal data.
-function routePattern(route: string) {
+// never the path itself, which could carry a token or personal data. The app
+// log names a route by it too.
+export function routePattern(route: string) {
   const segments = route.split("/");
   const pattern = routes.find((candidate) => {
     const parts = candidate.split("/");

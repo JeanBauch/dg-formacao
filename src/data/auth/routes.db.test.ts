@@ -1,6 +1,15 @@
-import { afterAll, beforeAll, describe, expect, test } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  test,
+} from "vitest";
 import { auth } from "@/data/auth";
 import { testBaseUrl } from "@/test/base-url";
+import { printedDuring } from "@/test/console";
 import { connect, testDatabase } from "@/test/db/test-database";
 import { nextTestIp } from "@/test/ip";
 import { signedInHolder } from "@/test/request";
@@ -39,12 +48,15 @@ function request(
   );
 }
 
-// A holder with the admin role, set in the database as the invite will set it.
-async function signedInAdmin() {
-  const admin = await signedInHolder();
-  await owner`update app."user" set role = 'admin' where id = ${admin.userId}`;
-  return admin;
+// A holder with this role field, set in the database as the invite will set
+// it: one staff role, or both, separated by a comma.
+async function signedInStaff(role: string) {
+  const staff = await signedInHolder();
+  await owner`update app."user" set role = ${role} where id = ${staff.userId}`;
+  return staff;
 }
+
+const signedInAdmin = () => signedInStaff("admin");
 
 // The routes the R0 uses, as A4.17 lists them: sign-up, sign-in, sign-out and
 // the session read; the request and completion of a password reset, with the
@@ -111,13 +123,35 @@ describe("the routes of Better Auth's HTTP handler (A4.17)", () => {
       },
     );
   });
+
+  // The app's handler names a route without its trailing slashes, as the rate
+  // limit does, and the social sign-in's return stays refused when spelled so.
+  test.each([
+    ["GET", "/callback/valor-ficticio/"],
+    ["POST", "/callback/valor-ficticio/"],
+    ["GET", "/callback/valor-ficticio//"],
+  ])(
+    "the social sign-in's return answers 404 to %s %s",
+    async (method, path) => {
+      const response = await request(method, path, {
+        body: method === "GET" ? undefined : {},
+      });
+
+      expect(response.status).toBe(404);
+    },
+  );
 });
 
 describe("the admin plugin's impersonation (A4.12)", () => {
   test.each([
     ["an anonymous visitor", async () => undefined],
     ["a holder", async () => (await signedInHolder()).cookie],
+    ["an instructor", async () => (await signedInStaff("instructor")).cookie],
     ["an admin", async () => (await signedInAdmin()).cookie],
+    [
+      "an account with both staff roles",
+      async () => (await signedInStaff("instructor,admin")).cookie,
+    ],
   ])("answers 404 to %s", async (_, cookieOf) => {
     const target = await signedInHolder();
     const cookie = await cookieOf();
@@ -145,5 +179,29 @@ describe("the admin plugin's impersonation (A4.12)", () => {
     });
 
     expect(response.status).toBe(404);
+  });
+});
+
+describe("a route that answers with a server error", () => {
+  // A holder signs in, and then the application role loses the right to read
+  // sessions while each test runs, so the database refuses the session read.
+  let cookie: string;
+
+  beforeEach(async () => {
+    ({ cookie } = await signedInHolder());
+    await owner`revoke select on app.session from dg_app`;
+  });
+
+  afterEach(async () => {
+    await owner`grant select on app.session to dg_app`;
+  });
+
+  test("is logged with the status and the route (RNF-OBS-01)", async () => {
+    const { result: response, printed } = await printedDuring(() =>
+      request("GET", "/get-session", { cookie }),
+    );
+
+    expect(response.status).toBe(500);
+    expect(printed).toMatch(/An auth request to \/get-session answered 500/);
   });
 });
