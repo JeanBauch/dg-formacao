@@ -4,6 +4,9 @@
 // so committing each ticket before the turn ends does not skip the gate.
 // Exit 2 sends stderr back to Claude and keeps it working (Claude Code caps consecutive blocks at 8).
 // A green state is remembered, so turns that change nothing (grilling, specs, reviews) exit immediately.
+// A Stop while a background agent is in flight is let through unchecked: the session is only waiting,
+// the agent may still be editing the tree, and its tests must not run against the gate's (they may share
+// a database). The stop after the agent reports back is checked as usual.
 // Escape hatch for one session: SDD_VERIFY_GATE=off claude
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
@@ -13,6 +16,8 @@ import { gitRoot, localBin, readStdinJson, runNode, tail } from './lib.mjs'
 
 const CODE_FILE = /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$/
 const BASE_BRANCHES = ['main', 'master', 'origin/main', 'origin/master']
+// Kinds of background work that can edit this working tree. Shells (a dev server) and cloud sessions do not.
+const AGENT_TASK_TYPES = new Set(['subagent', 'teammate', 'workflow'])
 
 const git = (root, ...args) => spawnSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
 const ignored = (path) => path.startsWith('.claude/') || path.includes('node_modules/')
@@ -72,6 +77,9 @@ function stateKey(root, { untracked, porcelain }) {
 
 const input = await readStdinJson()
 if ((process.env.SDD_VERIFY_GATE ?? '').toLowerCase() === 'off') process.exit(0)
+// Claude Code lists only in-flight work in `background_tasks`.
+const agentInFlight = (input.background_tasks ?? []).some((task) => AGENT_TASK_TYPES.has(task?.type))
+if (input.hook_event_name === 'Stop' && agentInFlight) process.exit(0)
 
 const root = gitRoot(input.cwd ?? process.cwd())
 if (!root) process.exit(0)
