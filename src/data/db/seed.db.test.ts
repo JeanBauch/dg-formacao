@@ -13,6 +13,7 @@ import {
 import { auth } from "@/data/auth";
 import { testBaseUrl } from "@/test/base-url";
 import { connect, testDatabase } from "@/test/db/test-database";
+import { nextTestIp } from "@/test/ip";
 import { seedHolder } from "@/test/seed-accounts";
 
 const seedScript = resolve(import.meta.dirname, "../../../scripts/db-seed.mts");
@@ -49,14 +50,26 @@ const seedEnvironment = {
   BETTER_AUTH_URL: "",
 };
 
+// What Vitest adds to the environment of the tests: NODE_ENV=test puts Better
+// Auth in test mode, which skips the origin check and the secret's validation,
+// and `pnpm db:seed` runs with none of them.
+function setByVitest(name: string) {
+  return name === "NODE_ENV" || name === "TEST" || name.startsWith("VITEST");
+}
+
 // Runs the seed script and resolves with what it printed; rejects, with the
 // script's own output, when it exits with an error.
 async function runSeed(environment: Record<string, string> = {}) {
+  // Next.js types NODE_ENV as always set; this child, as `pnpm db:seed`, has
+  // none.
+  const inherited = Object.fromEntries(
+    Object.entries(process.env).filter(([name]) => !setByVitest(name)),
+  ) as NodeJS.ProcessEnv;
   try {
     const { stdout, stderr } = await promisify(execFile)(
       process.execPath,
       [seedScript],
-      { env: { ...process.env, ...seedEnvironment, ...environment } },
+      { env: { ...inherited, ...seedEnvironment, ...environment } },
     );
     return `${stdout}${stderr}`;
   } catch (error) {
@@ -72,7 +85,7 @@ async function storedRows() {
   const [counts] = await owner<
     {
       users: number;
-      loginIdentities: number;
+      accounts: number;
       holderProfiles: number;
       profiles: number;
       consents: number;
@@ -80,7 +93,7 @@ async function storedRows() {
   >`
     select
       (select count(*)::int from app."user") as users,
-      (select count(*)::int from app.account) as "loginIdentities",
+      (select count(*)::int from app.account) as accounts,
       (select count(*)::int from app.profiles where is_primary)
         as "holderProfiles",
       (select count(*)::int from app.profiles) as profiles,
@@ -126,7 +139,7 @@ describe("the seed of the holder (A1.8)", () => {
         headers: {
           "content-type": "application/json",
           origin: testBaseUrl,
-          "x-forwarded-for": "198.51.100.1",
+          "x-forwarded-for": nextTestIp(),
         },
         body: JSON.stringify({
           email: seedHolder.email,
@@ -141,6 +154,20 @@ describe("the seed of the holder (A1.8)", () => {
     });
   });
 
+  test("gives the holder an e-mail of a domain reserved for tests", async () => {
+    await runSeed();
+
+    // RFC 2606, kept by RFC 6761: example.com, example.net and example.org,
+    // and the names under .test, .example, .invalid and .localhost.
+    const reserved =
+      /@(example\.(com|net|org)|([a-z0-9-]+\.)+(test|example|invalid|localhost))$/;
+    const emails = (
+      await owner<{ email: string }[]>`select email from app."user"`
+    ).map(({ email }) => email);
+    expect(emails).toHaveLength(1);
+    expect(emails[0]).toMatch(reserved);
+  });
+
   test("run twice, duplicates nothing", async () => {
     await runSeed();
     const afterTheFirst = await storedRows();
@@ -149,7 +176,7 @@ describe("the seed of the holder (A1.8)", () => {
 
     expect(afterTheFirst).toEqual({
       users: 1,
-      loginIdentities: 1,
+      accounts: 1,
       holderProfiles: 1,
       profiles: 1,
       consents: 3,
@@ -166,7 +193,7 @@ describe("the seed of the holder (A1.8)", () => {
         headers: {
           "content-type": "application/json",
           origin: testBaseUrl,
-          "x-forwarded-for": "198.51.100.2",
+          "x-forwarded-for": nextTestIp(),
         },
         body: JSON.stringify({
           name: seedHolder.name,
@@ -186,17 +213,25 @@ describe("the seed of the holder (A1.8)", () => {
     expect((await storedRows()).users).toBe(1);
   });
 
-  test("counts its requests under an IP of the documentation ranges, for the rate limit", async () => {
+  test("counts its requests under the holder's own IP, for the rate limit", async () => {
     await runSeed();
 
-    const keys = (
+    // A key is the IP and the route: `${ip}|${route}`.
+    const ips = (
       await owner<{ key: string }[]>`select key from app.rate_limit`
-    ).map(({ key }) => key);
-    expect(keys.length).toBeGreaterThan(0);
-    for (const key of keys) {
-      // RFC 5737: 192.0.2.0/24, 198.51.100.0/24 and 203.0.113.0/24.
-      expect(key).toMatch(/^(192\.0\.2|198\.51\.100|203\.0\.113)\.\d+\|/);
-    }
+    ).map(({ key }) => key.slice(0, key.indexOf("|")));
+    expect(new Set(ips)).toEqual(new Set([seedHolder.ip]));
+  });
+
+  test("gives the holder a simulated IP that no test is ever given", () => {
+    // RFC 5737: 192.0.2.0/24, 198.51.100.0/24 and 203.0.113.0/24.
+    expect(seedHolder.ip).toMatch(
+      /^(192\.0\.2|198\.51\.100|203\.0\.113)\.\d+$/,
+    );
+    // At least one full cycle of the tests' IP helper over its three ranges,
+    // whatever its cap per range: a /24 holds 256 addresses.
+    const issued = Array.from({ length: 3 * 256 }, () => nextTestIp());
+    expect(issued).not.toContain(seedHolder.ip);
   });
 
   test("prints no e-mail, password or link", async () => {
@@ -217,5 +252,26 @@ describe("the seed of the holder (A1.8)", () => {
     ).rejects.toThrow("The seed runs only with APP_ENV local or ci");
 
     expect((await storedRows()).users).toBe(0);
+  });
+
+  test("refuses, with APP_ENV ci too, a database off this machine, without naming it, and writes nothing", async () => {
+    const run = runSeed({
+      DATABASE_URL:
+        "postgresql://dg_app:hosted-password@db.example.invalid:5432/dg_formacao_test",
+    });
+
+    await expect(run).rejects.toThrow(
+      "The seed runs only against a database on this machine",
+    );
+    await expect(run).rejects.not.toThrow(
+      /db\.example\.invalid|hosted-password|postgresql:/,
+    );
+    expect(await storedRows()).toEqual({
+      users: 0,
+      accounts: 0,
+      holderProfiles: 0,
+      profiles: 0,
+      consents: 0,
+    });
   });
 });
