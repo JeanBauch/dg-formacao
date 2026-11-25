@@ -1,4 +1,3 @@
-import { format } from "node:util";
 import {
   afterAll,
   afterEach,
@@ -11,6 +10,7 @@ import {
 } from "vitest";
 import { auth } from "@/data/auth";
 import { testBaseUrl } from "@/test/base-url";
+import { printedDuring } from "@/test/console";
 import { cookiesOf } from "@/test/cookies";
 import { columnTypes } from "@/test/db/column-types";
 import { statementsSentDuring } from "@/test/db/statements";
@@ -228,6 +228,31 @@ describe("a sign-out (A2.8)", () => {
 
     expect(response.status).toBe(200);
     expect(await response.json()).toBeNull();
+  });
+
+  describe("whose session deletion fails", () => {
+    // The application role loses the right to delete sessions while each test
+    // runs, so the database refuses the deletion.
+    beforeEach(async () => {
+      await owner`revoke delete on app.session from dg_app`;
+    });
+
+    afterEach(async () => {
+      await owner`grant delete on app.session to dg_app`;
+    });
+
+    test("logs the failure without the session's token (RNF-OBS-01)", async () => {
+      const { email } = await signedInHolder();
+      const signIn = await post("/sign-in/email", { email, password });
+      const token = await sessionToken(signIn);
+
+      const { printed } = await printedDuring(() =>
+        post("/sign-out", {}, { cookie: cookiesOf(signIn) }),
+      );
+
+      expect(printed).toMatch(/\w+ \(42501\)/);
+      expect(printed).not.toContain(token);
+    });
   });
 });
 
@@ -542,22 +567,6 @@ describe("the work of a sign-in (NF-2)", () => {
     expect(later).toEqual(first);
   });
 });
-
-// What `run` returns, and everything printed while it ran, as one text: Better
-// Auth's logger and its router print to the console.
-async function printedDuring<T>(run: () => Promise<T>) {
-  const printed: string[] = [];
-  const spies = (["error", "warn", "info", "log"] as const).map((level) =>
-    vi.spyOn(console, level).mockImplementation((...args) => {
-      printed.push(format(...args));
-    }),
-  );
-  try {
-    return { result: await run(), printed: printed.join("\n") };
-  } finally {
-    for (const spy of spies) spy.mockRestore();
-  }
-}
 
 describe("a sign-in whose security log write fails", () => {
   // The application role loses the right to add rows to the security log

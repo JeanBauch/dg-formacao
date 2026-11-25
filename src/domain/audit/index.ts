@@ -6,6 +6,7 @@ export {
   isStaffRole,
   overflowKeyPrefix,
   overflowRow,
+  routePattern,
   securityEventRow,
   securityEventTypes,
   userAgentMaxLength,

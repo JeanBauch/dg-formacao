@@ -3,6 +3,27 @@ import { headers } from "next/headers";
 import { cache } from "react";
 import { rolesOf } from "@/domain/auth";
 import { auth } from "./auth";
+import { loggable } from "./loggable";
+
+// The session of these request headers as Better Auth reads it, without
+// renewing it. When the database fails the read, Better Auth throws an error
+// whose cause is the failed query, with its values, the session's token among
+// them, and Next.js prints a thrown error with its causes. So only the
+// failure's name and code reach the log, and the error thrown has no cause
+// (RNF-OBS-01).
+async function sessionOf(requestHeaders: Headers) {
+  try {
+    return await auth.api.getSession({
+      headers: requestHeaders,
+      query: { disableRefresh: true },
+    });
+  } catch (error) {
+    (await auth.$context).logger.error(
+      `Reading the session failed: ${loggable(error)}`,
+    );
+    throw new Error("Reading the session failed");
+  }
+}
 
 // The session gate (ADR-008): the session of the request's cookie, read from
 // the database, or null when there is none or it is no longer valid. Every
@@ -18,10 +39,7 @@ import { auth } from "./auth";
 // The daily renewal (A2.7) happens on the HTTP read of the session, which
 // writes the cookie too.
 export const verifySession = cache(async () => {
-  const found = await auth.api.getSession({
-    headers: await headers(),
-    query: { disableRefresh: true },
-  });
+  const found = await sessionOf(await headers());
   if (found === null) return null;
   return {
     userId: found.user.id,

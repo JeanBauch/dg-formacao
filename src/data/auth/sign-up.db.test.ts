@@ -1,16 +1,18 @@
-import { format } from "node:util";
+import { verifyPassword } from "better-auth/crypto";
 import { v7 as uuidv7 } from "uuid";
 import {
   afterAll,
   afterEach,
   beforeAll,
+  beforeEach,
   describe,
   expect,
   test,
-  vi,
 } from "vitest";
 import { auth } from "@/data/auth";
+import { printedDuring } from "@/test/console";
 import { columnTypes } from "@/test/db/column-types";
+import { statementsSentDuring } from "@/test/db/statements";
 import { connect, testDatabase } from "@/test/db/test-database";
 import { nextTestIp } from "@/test/ip";
 
@@ -93,18 +95,10 @@ function signUp(body: Record<string, unknown>, ip = nextTestIp()) {
 // A sign-up's answer and everything printed while it ran, as one text: Better
 // Auth's logger, which the hook logs through, prints to the console.
 async function signUpLogged(body: Record<string, unknown>) {
-  const printed: string[] = [];
-  const spies = (["error", "warn", "info", "log"] as const).map((level) =>
-    vi.spyOn(console, level).mockImplementation((...args) => {
-      printed.push(format(...args));
-    }),
+  const { result: response, printed: log } = await printedDuring(() =>
+    signUp(body),
   );
-  try {
-    const response = await signUp(body);
-    return { response, log: printed.join("\n") };
-  } finally {
-    for (const spy of spies) spy.mockRestore();
-  }
+  return { response, log };
 }
 
 // The profiles of the user who signed up with this e-mail.
@@ -322,6 +316,78 @@ describe("the password of a sign-up (A2.4)", () => {
     const response = await signUp({ ...holder(), password: "12345678" });
 
     expect(response.status).toBe(200);
+  });
+});
+
+// The hash of this password among the values sent to the database: the one
+// that Better Auth's own check accepts for it.
+async function hashOf(password: string, values: unknown[]) {
+  for (const value of values) {
+    if (typeof value !== "string") continue;
+    const accepted = await verifyPassword({ hash: value, password }).catch(
+      () => false,
+    );
+    if (accepted) return value;
+  }
+  return undefined;
+}
+
+describe("a sign-up whose login identity write fails", () => {
+  // The application role loses the right to add login identities while each
+  // test runs, so the database refuses the write, inside the user's
+  // transaction.
+  beforeEach(async () => {
+    await owner`revoke insert on app.account from dg_app`;
+  });
+
+  afterEach(async () => {
+    await owner`grant insert on app.account to dg_app`;
+  });
+
+  test("logs the failure without the e-mail, the name or the password hash (RNF-OBS-01)", async () => {
+    const form = { ...holder(), name: "Joana Fictícia Registrada" };
+
+    const {
+      result: { response, log },
+      values,
+    } = await statementsSentDuring(() => signUpLogged(form));
+
+    expect(response.ok).toBe(false);
+    expect(log).toMatch(/An auth request failed: \w+ \(42501\)/);
+    const hash = await hashOf(form.password, values);
+    expect(hash).toBeDefined();
+    expect(log).not.toContain(form.email);
+    expect(log).not.toContain(form.name);
+    expect(log).not.toContain(hash);
+  });
+});
+
+describe("a sign-up whose user write fails", () => {
+  // The application role loses the right to add users while each test runs,
+  // so the database refuses the write of the user, which carries the e-mail
+  // and the name.
+  beforeEach(async () => {
+    await owner`revoke insert on app."user" from dg_app`;
+  });
+
+  afterEach(async () => {
+    await owner`grant insert on app."user" to dg_app`;
+  });
+
+  test("logs the failure without the e-mail or the name (RNF-OBS-01)", async () => {
+    const form = { ...holder(), name: "Joana Fictícia Recusada" };
+
+    const {
+      result: { response, log },
+      values,
+    } = await statementsSentDuring(() => signUpLogged(form));
+
+    expect(response.ok).toBe(false);
+    expect(log).toMatch(/Failed to create user: \w+ \(42501\)/);
+    // The failed write sent both, so the log could have carried them.
+    expect(values).toEqual(expect.arrayContaining([form.email, form.name]));
+    expect(log).not.toContain(form.email);
+    expect(log).not.toContain(form.name);
   });
 });
 

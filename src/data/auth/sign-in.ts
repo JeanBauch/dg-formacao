@@ -6,30 +6,7 @@ import { recordSecurityEvent } from "@/data/audit";
 import { db } from "@/data/db/client";
 import { user } from "@/data/db/schema";
 import { loggable } from "./loggable";
-
-// The client's IP in the header Better Auth's rate limit reads
-// (`x-forwarded-for`, its default), split as the rate limit splits it: by
-// commas, each part trimmed and the empty ones dropped. Exactly one part is the
-// IP, as it came; Better Auth's own reading would already cut an IPv6 address
-// to its /64 (A5.11). Several parts are not one IP, so the log keeps none, as
-// Better Auth trusts none without trusted proxies.
-function ipOf(header: string | null) {
-  const parts = (header ?? "")
-    .split(",")
-    .map((part) => part.trim())
-    .filter((part) => part !== "");
-  return parts.length === 1 ? parts[0] : null;
-}
-
-// The client of a request, as it sent itself: its IP and its user agent. The
-// IP goes whole to the security log, which keeps it and reduces it to its
-// range itself.
-function clientOf(headers: Headers | undefined) {
-  return {
-    ip: ipOf(headers?.get("x-forwarded-for") ?? null),
-    userAgent: headers?.get("user-agent") ?? null,
-  };
-}
+import { requesterOf } from "./requester";
 
 // The e-mail a sign-in tried, once Better Auth has validated the request.
 const signInRequest = z.object({ email: z.string() });
@@ -60,7 +37,7 @@ export const recordSignIn = createAuthMiddleware(async (ctx) => {
   if (ctx.path !== "/sign-in/email") return;
   const signedIn = ctx.context.newSession;
   if (!signedIn && !refusedCredentials(ctx.context.returned)) return;
-  const client = clientOf(ctx.headers ?? ctx.request?.headers);
+  const requester = requesterOf(ctx.headers ?? ctx.request?.headers);
   try {
     await recordSecurityEvent(
       signedIn
@@ -68,14 +45,14 @@ export const recordSignIn = createAuthMiddleware(async (ctx) => {
             event: "sign_in_succeeded",
             userId: signedIn.user.id,
             route: ctx.path,
-            ...client,
+            ...requester,
           }
         : {
             event: "sign_in_failed",
             reason: "invalid_credentials",
             userId: await userIdWithEmail(signInRequest.parse(ctx.body).email),
             route: ctx.path,
-            ...client,
+            ...requester,
           },
     );
   } catch (error) {
