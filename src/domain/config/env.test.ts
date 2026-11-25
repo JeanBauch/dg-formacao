@@ -25,6 +25,7 @@ describe("a valid configuration", () => {
       SIGNUP_ENABLED: true,
       DATABASE_URL: "postgresql://fake_user:fake_pass@localhost:5432/fake_db",
       MAILER_ADAPTER: "file",
+      SECURITY_EVENTS_DAILY_CAP: 1000,
     });
   });
 
@@ -155,6 +156,55 @@ describe("the public sign-up switch (A1.13)", () => {
       );
     },
   );
+});
+
+describe("the security log's daily cap (A5.14)", () => {
+  test("is 1,000 new rows a day when the variable is absent", () => {
+    expect(parseEnv(localEnv).SECURITY_EVENTS_DAILY_CAP).toBe(1000);
+  });
+
+  test.each([
+    ["1", 1],
+    ["250", 250],
+    ["1000", 1000],
+    ["2000", 2000],
+  ])("%s becomes the number %i", (value, expected) => {
+    expect(
+      parseEnv({ ...localEnv, SECURITY_EVENTS_DAILY_CAP: value })
+        .SECURITY_EVENTS_DAILY_CAP,
+    ).toBe(expected);
+  });
+
+  test.each([
+    "0",
+    "2001",
+    "5000",
+    "-1",
+    "1.5",
+    "1.000",
+    "1,000",
+    "1e3",
+    "0x10",
+    "+5",
+    "abc",
+    "",
+    " 5",
+    "5 ",
+  ])("the value %j fails", (value) => {
+    expect(
+      isInvalid({ ...localEnv, SECURITY_EVENTS_DAILY_CAP: value }),
+    ).toThrow(/SECURITY_EVENTS_DAILY_CAP/);
+  });
+
+  test("an invalid value is reported by name, never printed", () => {
+    const message = messageOf({
+      ...localEnv,
+      SECURITY_EVENTS_DAILY_CAP: "7531",
+    });
+
+    expect(message).toContain("SECURITY_EVENTS_DAILY_CAP");
+    expect(message).not.toContain("7531");
+  });
 });
 
 function messageOf(source: Record<string, string | undefined>) {

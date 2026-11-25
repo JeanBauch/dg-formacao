@@ -246,6 +246,16 @@ Registro de eventos de autenticação, bloqueios e recusas de autorização, com
 _No código_: `security_events`.
 _Evitar_: log, log de acesso
 
+**Teto diário**:
+Número máximo de linhas novas que o registro de segurança ganha num dia UTC, configurável de 1 a 2.000, com padrão 1.000. Acima dele, o evento que criaria uma linha nova conta numa linha de transbordo, e o primeiro do dia avisa a equipe. Os eventos que exigem credencial válida ou sessão ficam fora dele. É aproximado: eventos simultâneos na borda podem passar dele por poucas linhas.
+_No código_: `SECURITY_EVENTS_DAILY_CAP`.
+_Evitar_: limite, cota
+
+**Linha de transbordo**:
+Linha do registro de segurança que só conta os eventos que criariam uma linha nova acima do teto diário: uma por evento e hora, sem IP, user agent nem detalhes. A falha de login e o pedido de redefinição contra conta de equipe têm a sua, com a conta.
+_No código_: `overflowRow`, com a chave começando por `overflow:`.
+_Evitar_: excedente, linha de overflow
+
 **Cota gratuita**:
 Limite de uso de um plano gratuito de provedor, por dia ou por mês.
 

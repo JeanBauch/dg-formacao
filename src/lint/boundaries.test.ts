@@ -227,14 +227,16 @@ describe("raw HTML is forbidden (A6.6)", () => {
   });
 });
 
-describe("only the audit module writes the security log, and nothing reads it but the purge (A5.6)", () => {
+describe("only the audit module writes the security log, and nothing reads it but its writer, for the daily cap, and the purge (A5.6, A5.14)", () => {
   test("the table, its relational query and its name in SQL are errors in another module", async () => {
     const texts = await lintErrorTexts(
       "src/data/catalog/reads-security-events.bad.ts",
     );
 
     expect(texts).toEqual(
-      Array(4).fill(expect.stringContaining("security log")),
+      Array(4).fill(
+        "Only the audit module writes the security log, and nothing reads it but its writer, for the daily cap (A5.14), and the purge: record events through the audit module's public interface (A5.6).",
+      ),
     );
     expect(
       await lintExample("src/data/catalog/reads-security-events.bad.ts"),

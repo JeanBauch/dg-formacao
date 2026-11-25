@@ -45,12 +45,13 @@ function internalImportPattern(other) {
 }
 
 // A5.6: only the audit module writes the security log (registro de segurança),
-// the only place with the client's IP (RNF-SEG-15), and nothing reads it but
-// the purge. One file of the audit module writes it, the schema defines it, and
-// tests read it; the purge's ticket adds the purge's own file to these.
+// the only place with the client's IP (RNF-SEG-15). One file of the audit module
+// writes it, and that file also reads it, for the daily cap only (A5.14);
+// nothing else reads it but the purge. The schema defines it and tests read it;
+// the purge's ticket adds the purge's own file to these.
 const securityEventsWriter = "src/data/audit/security-events.ts";
 const securityEventsMessage =
-  "Only the audit module writes the security log, and nothing reads it but the purge: record events through the audit module's public interface (A5.6).";
+  "Only the audit module writes the security log, and nothing reads it but its writer, for the daily cap (A5.14), and the purge: record events through the audit module's public interface (A5.6).";
 const securityEventsReads = [
   // The table object, imported or re-exported...
   "ImportSpecifier[imported.name='securityEvents']",
