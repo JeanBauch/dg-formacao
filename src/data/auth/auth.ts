@@ -7,6 +7,12 @@ import { v7 as uuidv7 } from "uuid";
 import { db } from "@/data/db/client";
 import * as schema from "@/data/db/schema";
 import { env } from "@/env";
+import {
+  passwordResetLink,
+  sendPasswordResetEmail,
+  sendVerificationEmail,
+  verificationLink,
+} from "./emails";
 import { authBasePath, disabledPaths, servedOverHttp } from "./http";
 import { printAuthLog } from "./loggable";
 import { recordSignIn } from "./sign-in";
@@ -29,6 +35,16 @@ const betterAuthInstance = betterAuth({
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 8, // RF-AUT-01
+    // RF-AUT-02: the verification gates a child profile (R3), not the sign-in.
+    requireEmailVerification: false,
+    resetPasswordTokenExpiresIn: passwordResetLink.seconds, // RF-AUT-04
+    sendResetPassword: sendPasswordResetEmail,
+  },
+  // The sign-up sends the confirmation link, valid for an hour (A3.1).
+  emailVerification: {
+    sendOnSignUp: true,
+    expiresIn: verificationLink.seconds,
+    sendVerificationEmail,
   },
   // A session lasts 7 days, renewed on its first use each day (A2.7). The
   // cookie cache stays off, so a revoked session stops on the next request.
