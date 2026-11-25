@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { rolesOf } from "@/domain/auth";
 
 // The events of the security log (registro de segurança, RNF-SEG-15), a closed
 // enum of the database. The PIN lockout joins in R3 as a new value, in an
@@ -200,15 +201,12 @@ export function securityEventRow(occurrence: SecurityEvent, at: Date) {
   };
 }
 
-// The roles of the staff, as the admin plugin keeps them in the role field:
-// one value, or several separated by commas.
+// The roles of the staff. An account holds a staff role when any of the roles
+// its role field keeps is one of them.
 const staffRoles = ["instructor", "admin"];
 
 export function isStaffRole(role: string | null) {
-  return (
-    role !== null &&
-    role.split(",").some((one) => staffRoles.includes(one.trim()))
-  );
+  return rolesOf(role).some((one) => staffRoles.includes(one));
 }
 
 // Whether an event stays outside the day's cap (A5.14). The events that need

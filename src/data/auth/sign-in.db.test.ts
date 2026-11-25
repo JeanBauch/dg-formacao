@@ -1,3 +1,4 @@
+import { format } from "node:util";
 import {
   afterAll,
   afterEach,
@@ -10,10 +11,12 @@ import {
 } from "vitest";
 import { auth } from "@/data/auth";
 import { testBaseUrl } from "@/test/base-url";
+import { cookiesOf } from "@/test/cookies";
 import { columnTypes } from "@/test/db/column-types";
 import { statementsSentDuring } from "@/test/db/statements";
 import { connect, testDatabase } from "@/test/db/test-database";
 import { nextTestIp, nextTestIpv6Network } from "@/test/ip";
+import { holderPassword as password, signedInHolder } from "@/test/request";
 
 // Seam 1: the Better Auth HTTP handler, in the process, over the test database,
 // at the base URL of the tests, which is https. The code under test connects as
@@ -29,25 +32,20 @@ afterAll(async () => {
   await owner.end();
 });
 
-const password = "senha-de-teste-1";
-let holders = 0;
+// The instant the tests that need a known time run at. Only Date is faked: the
+// database driver keeps its real timers, and an elapsed time is still measured.
+const instant = new Date("2026-11-24T13:05:30.000Z");
 
-// A holder who signed up, with an e-mail of a domain reserved for
-// documentation.
-async function signedUpHolder() {
-  holders += 1;
-  const email = `titular-login-${holders}@example.com`;
-  const response = await post("/sign-up/email", {
-    name: "Maria Fictícia",
-    email,
-    password,
-    adultDeclaration: true,
-    acceptance: true,
+// Stops the clock at the instant for each test of the block it is called in.
+function stopClockAtInstant() {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(instant);
   });
-  expect(response.status).toBe(200);
-  const [{ id }] = await owner<{ id: string }[]>`
-    select id from app."user" where email = ${email}`;
-  return { email, userId: id };
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 }
 
 function post(
@@ -78,14 +76,6 @@ function get(path: string, cookie: string) {
   );
 }
 
-// The cookies a response sets, as the browser sends them back.
-function cookiesOf(response: Response) {
-  return response.headers
-    .getSetCookie()
-    .map((cookie) => cookie.split(";")[0])
-    .join("; ");
-}
-
 // The token of the session a sign-in created, which its answer carries.
 async function sessionToken(signIn: Response) {
   const { token } = (await signIn.clone().json()) as { token: string };
@@ -103,7 +93,7 @@ const day = 24 * 60 * 60 * 1000;
 
 // The attributes of the cookie with this name that a response sets, by
 // attribute name in lower case, or undefined when it sets no such cookie.
-function setCookie(response: Response, name: string) {
+function cookieAttributes(response: Response, name: string) {
   const found = response.headers
     .getSetCookie()
     .find((cookie) => cookie.startsWith(`${name}=`));
@@ -122,7 +112,7 @@ const sessionCookie = "__Secure-better-auth.session_token";
 
 describe("a sign-in with the right e-mail and password (A2.7)", () => {
   test("with 'Lembrar de mim' sets the session cookie httpOnly, Secure and SameSite=Lax, for 7 days", async () => {
-    const { email } = await signedUpHolder();
+    const { email } = await signedInHolder();
 
     const response = await post("/sign-in/email", {
       email,
@@ -131,16 +121,16 @@ describe("a sign-in with the right e-mail and password (A2.7)", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(setCookie(response, sessionCookie)).toMatchObject({
+    expect(cookieAttributes(response, sessionCookie)).toMatchObject({
       httponly: true,
       secure: true,
       samesite: "Lax",
-      "max-age": String(7 * 24 * 60 * 60),
+      "max-age": "604800",
     });
   });
 
   test("without 'Lembrar de mim' sets a session cookie that ends when the browser closes: no Max-Age nor Expires", async () => {
-    const { email } = await signedUpHolder();
+    const { email } = await signedInHolder();
 
     const response = await post("/sign-in/email", {
       email,
@@ -149,7 +139,7 @@ describe("a sign-in with the right e-mail and password (A2.7)", () => {
     });
 
     expect(response.status).toBe(200);
-    const cookie = setCookie(response, sessionCookie);
+    const cookie = cookieAttributes(response, sessionCookie);
     expect(cookie).toMatchObject({
       httponly: true,
       secure: true,
@@ -160,20 +150,11 @@ describe("a sign-in with the right e-mail and password (A2.7)", () => {
   });
 
   describe("with 'Lembrar de mim', the session", () => {
-    // Only Date is faked: the database driver keeps its real timers.
-    const signedInAt = new Date("2026-11-24T13:05:30.000Z");
-
-    beforeEach(() => {
-      vi.useFakeTimers({ toFake: ["Date"] });
-      vi.setSystemTime(signedInAt);
-    });
-
-    afterEach(() => {
-      vi.useRealTimers();
-    });
+    // The holder signs in at the instant.
+    stopClockAtInstant();
 
     test("lasts 7 days, and a use within the day does not renew it", async () => {
-      const { email } = await signedUpHolder();
+      const { email } = await signedInHolder();
       const response = await post("/sign-in/email", {
         email,
         password,
@@ -182,23 +163,23 @@ describe("a sign-in with the right e-mail and password (A2.7)", () => {
       const token = await sessionToken(response);
 
       expect(await sessionExpiry(token)).toEqual(
-        new Date(signedInAt.getTime() + 7 * day),
+        new Date(instant.getTime() + 7 * day),
       );
-      vi.setSystemTime(signedInAt.getTime() + day - 60_000);
+      vi.setSystemTime(instant.getTime() + day - 60_000);
       expect((await get("/get-session", cookiesOf(response))).status).toBe(200);
       expect(await sessionExpiry(token)).toEqual(
-        new Date(signedInAt.getTime() + 7 * day),
+        new Date(instant.getTime() + 7 * day),
       );
     });
 
     test("is renewed for 7 more days by a use a day later, and so is its cookie", async () => {
-      const { email, userId } = await signedUpHolder();
+      const { email, userId } = await signedInHolder();
       const response = await post("/sign-in/email", {
         email,
         password,
         rememberMe: true,
       });
-      const usedAt = signedInAt.getTime() + day + 60_000;
+      const usedAt = instant.getTime() + day + 60_000;
       vi.setSystemTime(usedAt);
 
       const use = await get("/get-session", cookiesOf(response));
@@ -207,8 +188,8 @@ describe("a sign-in with the right e-mail and password (A2.7)", () => {
       expect(await sessionExpiry(await sessionToken(response))).toEqual(
         new Date(usedAt + 7 * day),
       );
-      expect(setCookie(use, sessionCookie)).toMatchObject({
-        "max-age": String(7 * 24 * 60 * 60),
+      expect(cookieAttributes(use, sessionCookie)).toMatchObject({
+        "max-age": "604800",
       });
     });
   });
@@ -223,7 +204,7 @@ async function sessionsWithToken(token: string) {
 
 describe("a sign-out (A2.8)", () => {
   test("deletes the session from the database and clears its cookie", async () => {
-    const { email } = await signedUpHolder();
+    const { email } = await signedInHolder();
     const signIn = await post("/sign-in/email", { email, password });
     const token = await sessionToken(signIn);
     expect(await sessionsWithToken(token)).toBe(1);
@@ -232,13 +213,13 @@ describe("a sign-out (A2.8)", () => {
 
     expect(response.status).toBe(200);
     expect(await sessionsWithToken(token)).toBe(0);
-    expect(setCookie(response, sessionCookie)).toMatchObject({
+    expect(cookieAttributes(response, sessionCookie)).toMatchObject({
       "max-age": "0",
     });
   });
 
   test("leaves the old cookie unauthenticated", async () => {
-    const { email } = await signedUpHolder();
+    const { email } = await signedInHolder();
     const signIn = await post("/sign-in/email", { email, password });
     const oldCookie = cookiesOf(signIn);
     await post("/sign-out", {}, { cookie: oldCookie });
@@ -252,7 +233,7 @@ describe("a sign-out (A2.8)", () => {
 
 describe("the session of a sign-in (A5.4)", () => {
   test("keeps no IP, and the rate limit still counts the sign-in by the client's IP", async () => {
-    const { email } = await signedUpHolder();
+    const { email } = await signedInHolder();
     const ip = nextTestIp();
 
     const response = await post("/sign-in/email", { email, password }, { ip });
@@ -288,22 +269,16 @@ function securityEvents() {
 }
 
 describe("the security log of a sign-in (A5.1)", () => {
-  // Every sign-in of a test happens at a known instant, so the minute its row
-  // falls in is known. Only Date is faked.
-  const instant = new Date("2026-11-24T13:05:30.000Z");
-
   beforeEach(async () => {
     await owner`truncate app.security_events`;
-    vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(instant);
   });
 
-  afterEach(() => {
-    vi.useRealTimers();
-  });
+  // Every sign-in of a test happens at the instant, so the minute its row falls
+  // in is known.
+  stopClockAtInstant();
 
   test("gains a sign_in_succeeded row with the time, the account, the full IP and the user agent", async () => {
-    const { email, userId } = await signedUpHolder();
+    const { email, userId } = await signedInHolder();
     const ip = nextTestIp();
 
     await post("/sign-in/email", { email, password }, { ip });
@@ -324,7 +299,7 @@ describe("the security log of a sign-in (A5.1)", () => {
   });
 
   test("gains a sign_in_failed row with the account, when the e-mail has one and the password is wrong", async () => {
-    const { email, userId } = await signedUpHolder();
+    const { email, userId } = await signedInHolder();
     const ip = nextTestIp();
 
     await post(
@@ -392,7 +367,7 @@ describe("the security log of a sign-in (A5.1)", () => {
       ["an IPv4 address", () => nextTestIp()],
       ["an IPv6 address", () => `${nextTestIpv6Network()}::a1`],
     ])("as it came, for %s", async (_, nextIp) => {
-      const { email } = await signedUpHolder();
+      const { email } = await signedInHolder();
       const ip = nextIp();
 
       await post("/sign-in/email", { email, password }, { ip });
@@ -402,8 +377,28 @@ describe("the security log of a sign-in (A5.1)", () => {
       ]);
     });
 
+    test.each([
+      ["a trailing comma", (ip: string) => `${ip},`],
+      ["spaces around it", (ip: string) => `${ip} , `],
+    ])(
+      "the one the rate limit counts, for one address with %s",
+      async (_, header) => {
+        const { email } = await signedInHolder();
+        const ip = nextTestIp();
+
+        await post("/sign-in/email", { email, password }, { ip: header(ip) });
+
+        expect(await securityEvents()).toMatchObject([
+          { event: "sign_in_succeeded", ip, count: 1 },
+        ]);
+        expect(
+          await owner`select count from app.rate_limit where key = ${`${ip}|/sign-in/email`}`,
+        ).toEqual([{ count: 1 }]);
+      },
+    );
+
     test("in one row for two IPv6 addresses of the same /64, with the first one's", async () => {
-      const { email } = await signedUpHolder();
+      const { email } = await signedInHolder();
       const network = nextTestIpv6Network();
 
       await post(
@@ -423,7 +418,7 @@ describe("the security log of a sign-in (A5.1)", () => {
     });
 
     test("empty for a value that is not an IP, and the sign-in still succeeds", async () => {
-      const { email, userId } = await signedUpHolder();
+      const { email, userId } = await signedInHolder();
 
       const response = await post(
         "/sign-in/email",
@@ -441,7 +436,7 @@ describe("the security log of a sign-in (A5.1)", () => {
 
 describe("a sign-in with a wrong e-mail or password (A2.10)", () => {
   test("answers the same error, which does not say which of the two is wrong", async () => {
-    const { email } = await signedUpHolder();
+    const { email } = await signedInHolder();
 
     const wrongPassword = await post("/sign-in/email", {
       email,
@@ -487,19 +482,11 @@ async function recordsOf(userId: string) {
 
 describe("the work of a sign-in (NF-2)", () => {
   describe("in one minute", () => {
-    // Only Date is faked, so both sign-ins fall in the same minute and the
-    // elapsed time is still measured.
-    beforeEach(() => {
-      vi.useFakeTimers({ toFake: ["Date"] });
-      vi.setSystemTime(new Date("2026-11-24T13:05:30.000Z"));
-    });
-
-    afterEach(() => {
-      vi.useRealTimers();
-    });
+    // Both sign-ins happen at the instant, so they fall in the same minute.
+    stopClockAtInstant();
 
     test("writes exactly one session and one occurrence in the security log, a new row or one more on the minute's row, in under 2 s", async () => {
-      const { email, userId } = await signedUpHolder();
+      const { email, userId } = await signedInHolder();
       const ip = nextTestIp();
       const before = await recordsOf(userId);
       const started = performance.now();
@@ -528,7 +515,7 @@ describe("the work of a sign-in (NF-2)", () => {
   });
 
   test("sends the database the same 8 statements, whatever sessions and events the account already has", async () => {
-    const { email, userId } = await signedUpHolder();
+    const { email, userId } = await signedInHolder();
     const signIn = () =>
       statementsSentDuring(() =>
         post("/sign-in/email", { email, password }, { ip: nextTestIp() }),
@@ -554,4 +541,69 @@ describe("the work of a sign-in (NF-2)", () => {
     expect(first).toHaveLength(8);
     expect(later).toEqual(first);
   });
+});
+
+// What `run` returns, and everything printed while it ran, as one text: Better
+// Auth's logger and its router print to the console.
+async function printedDuring<T>(run: () => Promise<T>) {
+  const printed: string[] = [];
+  const spies = (["error", "warn", "info", "log"] as const).map((level) =>
+    vi.spyOn(console, level).mockImplementation((...args) => {
+      printed.push(format(...args));
+    }),
+  );
+  try {
+    return { result: await run(), printed: printed.join("\n") };
+  } finally {
+    for (const spy of spies) spy.mockRestore();
+  }
+}
+
+describe("a sign-in whose security log write fails", () => {
+  // The application role loses the right to add rows to the security log
+  // while each test runs, so the database refuses the write.
+  beforeEach(async () => {
+    await owner`revoke insert on app.security_events from dg_app`;
+  });
+
+  afterEach(async () => {
+    await owner`grant insert on app.security_events to dg_app`;
+  });
+
+  test("with the right password answers an error, and leaves no session and no cookie (NF-2)", async () => {
+    const { email, userId } = await signedInHolder();
+    const before = await recordsOf(userId);
+
+    const { result: response } = await printedDuring(() =>
+      post("/sign-in/email", { email, password }),
+    );
+
+    expect(response.status).toBe(500);
+    expect(response.headers.getSetCookie()).toEqual([]);
+    expect(await recordsOf(userId)).toEqual(before);
+    expect(await response.json()).toMatchObject({ code: "SIGN_IN_FAILED" });
+  });
+
+  test.each([
+    ["the right password", password],
+    ["a wrong password", "outra-senha-errada"],
+  ])(
+    "with %s answers the sign-in's failure, and logs it without the IP, the user agent or the e-mail (RNF-SEG-15, RNF-OBS-01)",
+    async (_, tried) => {
+      const { email } = await signedInHolder();
+      const ip = nextTestIp();
+
+      const { result: response, printed } = await printedDuring(() =>
+        post("/sign-in/email", { email, password: tried }, { ip }),
+      );
+
+      expect(await response.json()).toMatchObject({ code: "SIGN_IN_FAILED" });
+      expect(printed).toMatch(
+        /Sign-in failed recording its security event: \w+ \(42501\)/,
+      );
+      expect(printed).not.toContain(ip);
+      expect(printed).not.toContain("Navegador Fictício");
+      expect(printed).not.toContain(email);
+    },
+  );
 });

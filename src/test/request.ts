@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { testBaseUrl } from "./base-url";
+import { cookiesOf } from "./cookies";
 import { nextTestIp } from "./ip";
 
 // Seam 2: of Next.js, only what the session gate reads is swapped, by this
@@ -24,12 +25,17 @@ export function serveRequestWith(cookie: string | null) {
   requestHeaders = new Headers(cookie === null ? {} : { cookie });
 }
 
-// A holder with a session: a fictitious holder signs up over HTTP, which
-// signs them in, and the cookies the answer sets are the ones the browser
-// would send back. Auth is loaded here, not at the top, because it loads the
-// session gate, which loads this module in place of `next/headers`.
+// The password every holder of `signedInHolder` signs up with.
+export const holderPassword = "senha-de-teste-1";
+
+// A holder with a session: a fictitious holder signs up over HTTP, with an
+// e-mail of a domain reserved for documentation, which signs them in, and the
+// cookies the answer sets are the ones the browser would send back. Auth is
+// loaded here, not at the top, because it loads the session gate, which loads
+// this module in place of `next/headers`.
 export async function signedInHolder() {
   const { auth } = await import("@/data/auth");
+  const email = `titular-${randomUUID()}@example.com`;
   const response = await auth.handler(
     new Request(`${testBaseUrl}/api/auth/sign-up/email`, {
       method: "POST",
@@ -39,8 +45,8 @@ export async function signedInHolder() {
       },
       body: JSON.stringify({
         name: "Maria Fictícia",
-        email: `titular-${randomUUID()}@example.com`,
-        password: "senha-de-teste-1",
+        email,
+        password: holderPassword,
         adultDeclaration: true,
         acceptance: true,
       }),
@@ -50,9 +56,5 @@ export async function signedInHolder() {
     throw new Error(`The holder's sign-up failed with ${response.status}`);
   }
   const { user } = (await response.json()) as { user: { id: string } };
-  const cookie = response.headers
-    .getSetCookie()
-    .map((setCookie) => setCookie.split(";")[0])
-    .join("; ");
-  return { userId: user.id, cookie };
+  return { email, userId: user.id, cookie: cookiesOf(response) };
 }

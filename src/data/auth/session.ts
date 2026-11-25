@@ -1,17 +1,8 @@
 import "server-only";
 import { headers } from "next/headers";
 import { cache } from "react";
+import { rolesOf } from "@/domain/auth";
 import { auth } from "./auth";
-
-// The roles of an account, as the admin plugin keeps them in the user's role
-// field: one value, or several separated by commas. An account with no staff
-// role has the plugin's default, user.
-function rolesOf(role: string | null | undefined) {
-  return (role ?? "")
-    .split(",")
-    .map((one) => one.trim())
-    .filter((one) => one !== "");
-}
 
 // The session gate (ADR-008): the session of the request's cookie, read from
 // the database, or null when there is none or it is no longer valid. Every
@@ -20,8 +11,17 @@ function rolesOf(role: string | null | undefined) {
 // as the database has them now, not as they were when the session began.
 // React's cache scopes it to one request, so the components of a page that all
 // ask for the session make one read of it (NF-1).
+//
+// The gate reads the session without renewing it. A Server Component cannot
+// set the cookie, so a renewal here would move the session's expiry in the
+// database while the browser kept the old cookie, and use up the day's renewal.
+// The daily renewal (A2.7) happens on the HTTP read of the session, which
+// writes the cookie too.
 export const verifySession = cache(async () => {
-  const found = await auth.api.getSession({ headers: await headers() });
+  const found = await auth.api.getSession({
+    headers: await headers(),
+    query: { disableRefresh: true },
+  });
   if (found === null) return null;
   return {
     userId: found.user.id,

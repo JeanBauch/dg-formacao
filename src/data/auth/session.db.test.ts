@@ -1,4 +1,13 @@
-import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  test,
+  vi,
+} from "vitest";
 import { verifySession } from "@/data/auth";
 import { statementsSentDuring } from "@/test/db/statements";
 import { connect, testDatabase } from "@/test/db/test-database";
@@ -68,6 +77,36 @@ describe("the session gate (verifySession)", () => {
     serveRequestWith(holder.cookie);
 
     expect(await verifySession()).toBeNull();
+  });
+});
+
+// When the session of a user expires, as the database keeps it.
+async function expiryOf(userId: string) {
+  const [{ expires_at }] = await owner<{ expires_at: Date }[]>`
+    select expires_at from app.session where user_id = ${userId}`;
+  return expires_at;
+}
+
+describe("the session gate and the daily renewal (A2.7)", () => {
+  // Only Date is faked: the database driver keeps its real timers.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-24T13:05:30.000Z"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  test("leaves a session due for renewal as it is, for the HTTP read that renews its cookie too", async () => {
+    const holder = await signedInHolder();
+    vi.setSystemTime(new Date("2026-11-25T13:06:30.000Z"));
+    serveRequestWith(holder.cookie);
+
+    expect(await verifySession()).toMatchObject({ userId: holder.userId });
+    expect(await expiryOf(holder.userId)).toEqual(
+      new Date("2026-12-01T13:05:30.000Z"),
+    );
   });
 });
 
