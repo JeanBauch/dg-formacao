@@ -27,22 +27,33 @@ export function loggable(error: unknown) {
   return code === undefined ? error.name : `${error.name} (${code})`;
 }
 
+type LogLevel = "debug" | "info" | "warn" | "error";
+
+// Prints a line of the log under the label of what wrote it, as in
+// "ERROR [Mailer]: ...", so a line of the app's own reads apart from Better
+// Auth's.
+export function printLog(level: LogLevel, source: string, text: string) {
+  const line = `${level.toUpperCase()} [${source}]: ${text}`;
+  if (level === "error") console.error(line);
+  else if (level === "warn") console.warn(line);
+  else console.log(line);
+}
+
 // Prints a line of Better Auth's logger (its `logger.log`). Better Auth hands
 // the error it caught to the logger whole, as in "Failed to delete session from
 // database" with the failed query and its token, so each error, the message
 // included, is printed as `loggable` keeps it. Any other value that comes with
 // the message is left out, as it could carry the request's data (RNF-OBS-01).
 export function printAuthLog(
-  level: "debug" | "info" | "warn" | "error",
+  level: LogLevel,
   message: unknown,
   ...values: unknown[]
 ) {
   const text = typeof message === "string" ? message : loggable(message);
   const errors = values.filter((value) => value instanceof Error);
-  const line = [`${level.toUpperCase()} [Better Auth]: ${text}`]
-    .concat(errors.map(loggable))
-    .join(": ");
-  if (level === "error") console.error(line);
-  else if (level === "warn") console.warn(line);
-  else console.log(line);
+  printLog(
+    level,
+    "Better Auth",
+    [text].concat(errors.map(loggable)).join(": "),
+  );
 }

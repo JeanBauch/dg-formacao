@@ -1,5 +1,14 @@
+import { beforeEach, vi } from "vitest";
 import { testBaseUrl } from "../base-url";
+import { fakeMailer } from "../mailer";
 import { testDatabase } from "./test-database";
+
+// Seam 1: the database tests send e-mail through the in-process adapter, in
+// place of the application's mailer, and each test starts with a mailer that
+// has sent nothing.
+vi.mock("@/infra/mailer", () => import("@/test/mailer"));
+
+beforeEach(() => fakeMailer.reset());
 
 // Runs before each database test file imports anything: the configuration the
 // code under test validates when it loads, with the fictitious local values.
