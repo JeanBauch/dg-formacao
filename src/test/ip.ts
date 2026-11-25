@@ -13,3 +13,13 @@ export function nextTestIp() {
   issued += 1;
   return `${range}.${host}`;
 }
+
+let issuedIpv6Networks = 0;
+
+// A /64 network for each test that needs IPv6 addresses, from the range RFC
+// 3849 reserves for documentation: its first four groups, as in 2001:db8:0:1,
+// to which the test appends the host part (`${network}::1`).
+export function nextTestIpv6Network() {
+  issuedIpv6Networks += 1;
+  return `2001:db8:0:${issuedIpv6Networks.toString(16)}`;
+}

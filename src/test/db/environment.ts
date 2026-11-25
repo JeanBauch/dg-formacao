@@ -1,15 +1,18 @@
+import { testBaseUrl } from "../base-url";
 import { testDatabase } from "./test-database";
 
 // Runs before each database test file imports anything: the configuration the
 // code under test validates when it loads, with the fictitious local values.
 // It connects to the test database as the application role, so the database's
-// refusals are real.
+// refusals are real. Better Auth reads its base URL from its own variable, and
+// the tests' one is https, as in every hosted environment (A2.7).
 Object.assign(process.env, {
   APP_ENV: "ci",
   SIGNUP_ENABLED: "true",
   DATABASE_URL: testDatabase.appUrl,
   MAILER_ADAPTER: "file",
   VERCEL: "",
+  BETTER_AUTH_URL: testBaseUrl,
 });
 
 // The security log's daily cap keeps its default, whatever the developer's shell

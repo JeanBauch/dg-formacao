@@ -10,6 +10,7 @@ import {
   signUpNameMaxLength,
   signUpRefusal,
 } from "@/domain/auth";
+import { loggable } from "./loggable";
 
 // What the sign-up answers when it is refused: a code the form maps to its
 // field, and a message that says what to do (A2.3).
@@ -45,15 +46,6 @@ export const refuseIncompleteSignUp = createAuthMiddleware(async (ctx) => {
   const refusal = signUpRefusal(ctx.body);
   if (refusal) throw APIError.from("BAD_REQUEST", refusals[refusal]);
 });
-
-// What a failure may say in a log: its name and the database's error code.
-// Never its message, which for a failed query carries the values written, the
-// name and the e-mail among them (RNF-OBS-01).
-function loggable(error: unknown) {
-  if (!(error instanceof Error)) return "unknown error";
-  const { code } = (error.cause ?? error) as { code?: unknown };
-  return typeof code === "string" ? `${error.name} (${code})` : error.name;
-}
 
 // Runs as Better Auth's `databaseHooks.user.create.after`, in the sign-up
 // request: every user is born with the holder's profile (RF-PRF-01) and the
