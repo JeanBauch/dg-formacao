@@ -25,7 +25,7 @@ These are the MVP's protections in place of MFA (RF-AUT-08). `requireStaff` enfo
 
 ## Staff passwords
 
-Staff passwords have at least 12 characters. A before-hook on the reset finds the account from the link and refuses a shorter password, so the password does not change and the link stays valid until it expires (CONFIG.md). The sign-in check below stays as the second barrier. An after-hook on `/sign-in/email` checks the length of the submitted password once the password has been verified. When a staff account's password is shorter, the hook revokes the new session and answers with an error that sends the user to set a new password. Because the check runs only after verification, it reveals nothing to someone who does not know the password, and it covers every path that can set a password.
+Staff passwords have at least 12 characters. A before-hook on the reset finds the account from the link and refuses a shorter password, so the password does not change and the link stays valid until it expires (CONFIG.md). The sign-in check below stays as the second barrier. An after-hook on `/sign-in/email` checks the length of the submitted password once the password has been verified. When a staff account's password is shorter, the hook revokes the new session and answers with an error that sends the user to set a new password. An after-hook on `/sign-in/email` reaches and deletes the session that sign-in has just created, and drops the `set-cookie` the answer already carries (confirmed in #11, commit 80dc97e). Because the check runs only after verification, it reveals nothing to someone who does not know the password, and it covers every path that can set a password.
 
 ## Suspension and audit
 
