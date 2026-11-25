@@ -7,6 +7,18 @@ import react from "@vitejs/plugin-react";
 // database. The other tests use no database and run in parallel.
 const databaseTests = "src/**/*.db.test.ts";
 
+// The data layer runs as server code, where Next.js resolves React with the
+// `react-server` condition, and React scopes `cache` to the render of one
+// request. The database tests resolve it the same way, both for the code Vite
+// loads and for the packages Node loads, so a test can render Server
+// Components in one request (NF-1). The other conditions are Vite's defaults.
+const serverConditions = [
+  "react-server",
+  "module",
+  "node",
+  "development|production",
+];
+
 export default defineConfig({
   plugins: [react()],
   resolve: {
@@ -28,6 +40,7 @@ export default defineConfig({
       },
       {
         extends: true,
+        ssr: { resolve: { conditions: serverConditions } },
         test: {
           name: "db",
           environment: "node",
@@ -35,6 +48,7 @@ export default defineConfig({
           globalSetup: ["./src/test/db/global-setup.ts"],
           setupFiles: ["./src/test/db/environment.ts"],
           fileParallelism: false,
+          execArgv: ["--conditions=react-server"],
         },
       },
     ],
