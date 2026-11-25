@@ -229,6 +229,31 @@ describe("a sign-out (A2.8)", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toBeNull();
   });
+
+  describe("whose session deletion fails", () => {
+    // The application role loses the right to delete sessions while each test
+    // runs, so the database refuses the deletion.
+    beforeEach(async () => {
+      await owner`revoke delete on app.session from dg_app`;
+    });
+
+    afterEach(async () => {
+      await owner`grant delete on app.session to dg_app`;
+    });
+
+    test("logs the failure without the session's token (RNF-OBS-01)", async () => {
+      const { email } = await signedInHolder();
+      const signIn = await post("/sign-in/email", { email, password });
+      const token = await sessionToken(signIn);
+
+      const { printed } = await printedDuring(() =>
+        post("/sign-out", {}, { cookie: cookiesOf(signIn) }),
+      );
+
+      expect(printed).toMatch(/\w+ \(42501\)/);
+      expect(printed).not.toContain(token);
+    });
+  });
 });
 
 describe("the session of a sign-in (A5.4)", () => {
