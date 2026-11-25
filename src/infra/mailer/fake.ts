@@ -51,9 +51,10 @@ export function createFakeMailer() {
       return inFlight;
     },
     settled,
-    // From now on, a send waits for `release`.
+    // From now on, a send waits for `release`. Holding again keeps the same
+    // gate, so the sends it already holds end on the next `release` too.
     hold() {
-      gate = new Promise<void>((resolve) => {
+      gate ??= new Promise<void>((resolve) => {
         openGate = resolve;
       });
     },

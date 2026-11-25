@@ -10,6 +10,7 @@ import {
 } from "vitest";
 import { auth } from "@/data/auth";
 import { testBaseUrl } from "@/test/base-url";
+import { printedDuring } from "@/test/console";
 import { connect, testDatabase } from "@/test/db/test-database";
 import { nextTestIp } from "@/test/ip";
 import { fakeMailer, linkOf } from "@/test/mailer";
@@ -145,6 +146,72 @@ describe("the confirmation e-mail of a sign-up (A3.1)", () => {
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toMatch(/^\/\?error=/);
       expect(await emailVerified(form.email)).toBe(false);
+    });
+  });
+});
+
+// The confirmation goes out only once the sign-up has ended well: its user
+// committed, with the holder's profile and consents, and its session. A
+// sign-up that fails leaves no account, so a link to it would lead nowhere.
+describe("a sign-up that does not end well (A3.1)", () => {
+  // The sign-up's answer, once every send it started has ended. Its failure
+  // is logged, which `printedDuring` keeps off the terminal.
+  async function signUpToTheEnd(form: ReturnType<typeof holder>) {
+    const { result: response } = await printedDuring(() => signUp(form));
+    await fakeMailer.settled();
+    return response;
+  }
+
+  test("refused before its account exists sends nothing", async () => {
+    const response = await signUpToTheEnd({ ...holder(), acceptance: false });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      code: "ACCEPTANCE_REQUIRED",
+    });
+    expect(fakeMailer.sent).toEqual([]);
+  });
+
+  describe("whose session write fails", () => {
+    // The application role loses the right to add sessions while each test
+    // runs, so the session's write is refused inside the user's transaction,
+    // and the user rolls back with it.
+    beforeEach(async () => {
+      await owner`revoke insert on app.session from dg_app`;
+    });
+
+    afterEach(async () => {
+      await owner`grant insert on app.session to dg_app`;
+    });
+
+    test("answers an error and sends nothing", async () => {
+      const response = await signUpToTheEnd(holder());
+
+      expect(response.status).toBe(500);
+      expect(fakeMailer.sent).toEqual([]);
+    });
+  });
+
+  describe("whose holder's profile write fails", () => {
+    // The application role loses the right to add profiles while each test
+    // runs, so the write after the user's commit is refused, and the sign-up
+    // deletes the user it had created (A2.13).
+    beforeEach(async () => {
+      await owner`revoke insert on app.profiles from dg_app`;
+    });
+
+    afterEach(async () => {
+      await owner`grant insert on app.profiles to dg_app`;
+    });
+
+    test("answers its error and sends nothing", async () => {
+      const form = holder();
+
+      const response = await signUpToTheEnd(form);
+
+      expect(response.status).toBe(500);
+      expect(await response.json()).toMatchObject({ code: "SIGN_UP_FAILED" });
+      expect(fakeMailer.sent).toEqual([]);
     });
   });
 });

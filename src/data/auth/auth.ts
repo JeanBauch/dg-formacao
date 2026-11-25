@@ -8,10 +8,11 @@ import { db } from "@/data/db/client";
 import * as schema from "@/data/db/schema";
 import { env } from "@/env";
 import {
-  passwordResetLink,
+  passwordResetLinkLifetime,
   sendPasswordResetEmail,
   sendVerificationEmail,
-  verificationLink,
+  signUpConfirmation,
+  verificationLinkLifetime,
 } from "./emails";
 import { authBasePath, disabledPaths, servedOverHttp } from "./http";
 import { printAuthLog } from "./loggable";
@@ -37,13 +38,14 @@ const betterAuthInstance = betterAuth({
     minPasswordLength: 8, // RF-AUT-01
     // RF-AUT-02: the verification gates a child profile (R3), not the sign-in.
     requireEmailVerification: false,
-    resetPasswordTokenExpiresIn: passwordResetLink.seconds, // RF-AUT-04
+    resetPasswordTokenExpiresIn: passwordResetLinkLifetime.seconds, // RF-AUT-04
     sendResetPassword: sendPasswordResetEmail,
   },
-  // The sign-up sends the confirmation link, valid for an hour (A3.1).
+  // The confirmation link is valid for an hour (A3.1). The sign-up's own is
+  // sent by `signUpConfirmation`, once the sign-up has ended well.
   emailVerification: {
-    sendOnSignUp: true,
-    expiresIn: verificationLink.seconds,
+    sendOnSignUp: false,
+    expiresIn: verificationLinkLifetime.seconds,
     sendVerificationEmail,
   },
   // A session lasts 7 days, renewed on its first use each day (A2.7). The
@@ -87,7 +89,7 @@ const betterAuthInstance = betterAuth({
   // The same UUIDv7 generator as every other table (skill data-layer).
   advanced: { database: { generateId: () => uuidv7() } },
   // nextCookies stays last, as the Better Auth docs require.
-  plugins: [admin(), nextCookies()],
+  plugins: [admin(), signUpConfirmation, nextCookies()],
 });
 
 // The app's Better Auth: its server API as it is, and its HTTP handler as the

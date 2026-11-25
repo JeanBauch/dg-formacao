@@ -144,7 +144,7 @@ describe("a request whose e-mail fails to send (A3.9)", () => {
   }
 
   test.each(requests)(
-    "does not break the request to $name, and logs the failure as an error without the recipient",
+    "does not break the request to $name, and logs the failure as an error of the mailer, without the recipient",
     async ({ prepare, ask, kind }) => {
       const form = holder();
       await prepare(form);
@@ -152,9 +152,10 @@ describe("a request whose e-mail fails to send (A3.9)", () => {
       const { result: response, printed } = await askWithSendFailing(ask, form);
 
       expect(response.status).toBe(200);
+      // The app's own mailer failed, not Better Auth: the line says so.
       expect(printed).toMatch(
         new RegExp(
-          `^ERROR .*Sending the ${kind} e-mail failed: ProviderLimitError$`,
+          `^ERROR \\[Mailer\\]: Sending the ${kind} e-mail failed: ProviderLimitError$`,
           "m",
         ),
       );
