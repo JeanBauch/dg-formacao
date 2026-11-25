@@ -16,7 +16,8 @@
     "db:up": "docker compose up --detach --wait",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:roles": "node scripts/db-roles.mts"
+    "db:roles": "node scripts/db-roles.mts",
+    "db:seed": "node --env-file-if-exists=.env.local scripts/db-seed.mts"
   },
   "dependencies": {
     "better-auth": "1.7.15",

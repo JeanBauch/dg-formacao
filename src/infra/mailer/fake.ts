@@ -1,9 +1,10 @@
 import type { Email, Mailer } from "./index";
 
-// The in-process adapter for the tests of seams 1 and 2. Unlike the server's
-// adapters, it never calls after(): the send is held by the test itself. A
-// send ends when it is let to (`release`) and the message is captured then; it
-// can also be made to fail, as the provider's limit does.
+// The in-process adapter for the tests of seams 1 and 2 and for the seed
+// script, none of which runs inside Next.js. Unlike the server's adapters, it
+// never calls after(): the send is held by the test itself. A send ends when
+// it is let to (`release`) and the message is captured then; it can also be
+// made to fail, as the provider's limit does.
 export function createFakeMailer() {
   // The messages whose send ended well, in order.
   const sent: Email[] = [];
