@@ -8,11 +8,11 @@ import { messagesTo } from "./support/mailbox";
 // proof of U6 as well: the adapter writes a message only inside after(), so a
 // message in the mailbox shows that after() ran from Better Auth's e-mail
 // callback, in a real Route Handler.
-test("an account created over HTTP gets its confirmation link in the file mailbox, and opening it confirms the e-mail", async ({
+test("a holder who signs up over HTTP gets the confirmation link in the file mailbox, and opening it confirms the e-mail", async ({
   page,
 }) => {
   const email = `titular-e2e-${randomUUID()}@example.com`;
-  // The account's session, as the server reads it from the browser's cookie.
+  // The holder's session, as the server reads it from the browser's cookie.
   const session = async () =>
     (await page.request.get("/api/auth/get-session")).json();
 

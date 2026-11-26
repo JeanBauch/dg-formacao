@@ -31,11 +31,12 @@ export async function runScript(args: string[], env: Record<string, string>) {
 }
 
 // A1.10: with the database down, the database tests stop before their first
-// test with what to do, never with a bare connection error. A server that
-// answers and refuses (a wrong password, a missing database, another Postgres
-// already on the port) is not down, so its own code and message are shown. The
-// error code is kept; the connection error itself is not attached, because
-// Vitest would print it in full after the message.
+// test with what to do, never with a bare connection error, and so does the
+// E2E: the message speaks of whichever tests it stops. A server that answers
+// and refuses (a wrong password, a missing database, another Postgres already
+// on the port) is not down, so its own code and message are shown. The error
+// code is kept; the connection error itself is not attached, because Vitest
+// would print it in full after the message.
 export async function assertPostgresReachable(url: string) {
   const server = postgres(url, { max: 1, connect_timeout: 5 });
   try {
@@ -44,13 +45,13 @@ export async function assertPostgresReachable(url: string) {
     const { hostname, port } = new URL(url);
     if (error instanceof postgres.PostgresError) {
       throw new Error(
-        `The database tests need the local Postgres. Postgres at ${hostname}:${port} answered but refused (${error.code}: ${error.message}). ` +
+        `These tests need the local Postgres. Postgres at ${hostname}:${port} answered but refused (${error.code}: ${error.message}). ` +
           "They expect the container from `pnpm db:up`: if another Postgres holds that port, stop it, then run `pnpm db:up` and the tests again.",
       );
     }
     const reason = (error as { code?: string }).code ?? String(error);
     throw new Error(
-      `The database tests need the local Postgres, which is not answering at ${hostname}:${port} (${reason}). ` +
+      `These tests need the local Postgres, which is not answering at ${hostname}:${port} (${reason}). ` +
         "Start it with `pnpm db:up`, then run the tests again.",
     );
   } finally {

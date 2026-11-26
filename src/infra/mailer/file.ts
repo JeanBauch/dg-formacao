@@ -8,7 +8,10 @@ import type { Email } from "./index";
 // else (A1.6): it sends nothing out, and leaves each message in a folder that
 // the E2E and the developer read.
 
-// Where the messages are left, from the server's working directory.
+// Where the messages are left, from the server's working directory. The build's
+// file tracing would list the messages already there among the deployment files,
+// so next.config.ts leaves this folder out of every route's trace: a rename
+// changes both.
 export const mailboxDirectory = ".mailbox";
 
 // One message a file. It is written under another name first, so a reader of the

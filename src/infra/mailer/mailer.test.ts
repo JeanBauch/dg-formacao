@@ -38,8 +38,15 @@ afterEach(async () => {
   vi.resetModules();
 });
 
+// A mailbox that does not exist yet holds no message; one that cannot be read
+// fails the test.
 async function mailbox(): Promise<unknown[]> {
-  const files = await readdir(".mailbox").catch(() => []);
+  const files = await readdir(".mailbox").catch(
+    (error: NodeJS.ErrnoException) => {
+      if (error.code === "ENOENT") return [];
+      throw error;
+    },
+  );
   return Promise.all(
     files.map(async (file) =>
       JSON.parse(await readFile(join(".mailbox", file), "utf8")),

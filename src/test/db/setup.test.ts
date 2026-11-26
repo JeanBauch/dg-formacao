@@ -21,3 +21,13 @@ test("with the database down, the check says to start it and names the script", 
   await expect(failure).rejects.toThrow(/start it with `pnpm db:up`/i);
   await expect(failure).rejects.toThrow(/not answering/);
 }, 15_000);
+
+// The E2E's setup runs the same check before its first test.
+test("with the database down, the check speaks of the tests it stops, whichever suite they are", async () => {
+  const url = `postgresql://postgres:postgres@127.0.0.1:${await closedPort()}/postgres`;
+
+  const failure = assertPostgresReachable(url);
+
+  await expect(failure).rejects.toThrow(/^These tests need the local Postgres/);
+  await expect(failure).rejects.not.toThrow(/database tests/);
+}, 15_000);
