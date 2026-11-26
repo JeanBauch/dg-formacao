@@ -55,6 +55,7 @@ End with exactly this block:
 Status: done | needs-decision | stuck
 Commits: <sha> <subject>, ...
 Evidence: <each command run in step 4, with its last output line>
+Red: <per acceptance criterion (per finding in fix mode): the test name and the last line of its red run>
 Assumptions: <one line each, or none>
 Open: <what is left undone, or none>
 ```
