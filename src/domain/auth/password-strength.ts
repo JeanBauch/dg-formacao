@@ -1,4 +1,4 @@
-// The shortest password a holder's account takes (RF-AUT-01), counted as
+// The shortest password a holder may choose (RF-AUT-01), counted as
 // Better Auth counts it: in UTF-16 code units, the string's length.
 export const holderPasswordMinLength = 8;
 

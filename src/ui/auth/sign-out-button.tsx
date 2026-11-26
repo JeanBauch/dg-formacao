@@ -1,29 +1,20 @@
 "use client";
 
-import { answerOf, authClient } from "./auth-client";
 import { FormError, SubmitButton } from "./fields";
-import { errorMessage, texts } from "./texts";
-import { useAuthForm } from "./use-auth-form";
+import { texts } from "./texts";
+import { useSignOut } from "./use-sign-out";
 
-// Signs out over Better Auth's HTTP, which deletes this device's session and
-// clears its cookie (A2.8), and then goes to the sign-in page.
-async function signOut() {
-  const { error } = await answerOf(authClient.signOut());
-  if (!error) window.location.replace("/entrar");
-  return error;
-}
-
-// "Sair", on the account's page.
+// "Sair", on the user's page.
 export function SignOutButton() {
-  const form = useAuthForm(signOut);
+  const signOut = useSignOut();
   return (
-    <form onSubmit={form.submit} className="flex flex-col gap-2">
-      <FormError message={form.error && errorMessage(form.error)} />
+    <form onSubmit={signOut.submit} className="flex flex-col gap-2">
+      <FormError message={signOut.error} />
       <SubmitButton
-        label={texts.account.signOut}
-        busyLabel={texts.account.signingOut}
-        busy={form.busy || form.done}
-        enabled={form.canSubmit && !form.done}
+        label={texts.user.signOut}
+        busyLabel={texts.user.signingOut}
+        busy={signOut.busy}
+        enabled={signOut.canSubmit}
       />
     </form>
   );

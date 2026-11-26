@@ -1,4 +1,4 @@
 // The public interface of the auth module.
-export { currentAccount } from "./account";
+export { currentUser } from "./current-user";
 export { auth } from "./auth";
 export { verifySession } from "./session";

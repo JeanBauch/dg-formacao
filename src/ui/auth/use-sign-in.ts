@@ -6,7 +6,7 @@ import { errorMessage } from "./texts";
 import { useAuthForm } from "./use-auth-form";
 
 // The path the sign-in returns to: the page's `retorno`, when it is a path of
-// the app, or the account's page (A2.9, A2.9a).
+// the app, or the user's page (A2.9, A2.9a).
 function requestedReturn() {
   return returnPath(new URLSearchParams(window.location.search).get("retorno"));
 }

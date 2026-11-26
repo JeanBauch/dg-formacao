@@ -14,6 +14,11 @@ type FormState =
 // went well. While a call is pending, and before React runs the page in the
 // browser, the form cannot be sent again.
 //
+// While a call is pending, the form shows neither the last call's error nor
+// its success. A screen reader announces an alert when it appears and a status
+// when its text changes, so the next answer is announced too, even when it is
+// the same as the last (WCAG 2.1 AA).
+//
 // The form is sent from its submit event, not as a form action, which React
 // would follow by clearing the fields: after a refusal, the person corrects
 // what they typed instead of typing it all again.
@@ -29,8 +34,8 @@ export function useAuthForm(
     { status: "idle" },
   );
   return {
-    error: state.status === "failed" ? state.error : null,
-    done: state.status === "done",
+    error: state.status === "failed" && !isPending ? state.error : null,
+    done: state.status === "done" && !isPending,
     busy: isPending,
     canSubmit: hydrated && !isPending,
     submit(event: FormEvent<HTMLFormElement>) {

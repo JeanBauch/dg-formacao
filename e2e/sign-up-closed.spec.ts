@@ -11,8 +11,10 @@ test("with the public sign-up closed, the sign-up page says it is not open yet (
 }) => {
   await page.goto("/cadastro");
 
+  // Only that, with no promise of a notice: nothing collects an e-mail to send
+  // one.
   await expect(
-    page.getByText("O cadastro ainda não está aberto.", { exact: false }),
+    page.getByText("O cadastro ainda não está aberto.", { exact: true }),
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Criar conta" })).toHaveCount(
     0,

@@ -30,3 +30,18 @@ export const closedSignUpEnvironment = {
   SIGNUP_ENABLED: "false",
   BETTER_AUTH_URL: closedSignUpUrl,
 };
+
+// A third server of the same build, on the port after that, whose database is
+// out of reach: one the container does not have. It shares the first server's
+// secret, so the seed's holder's cookie gets past its edge and its session
+// gate, which then fails to read the session. Only the private area's error
+// test goes to it.
+export const databaseDownPort = port + 2;
+
+export const databaseDownUrl = `http://localhost:${databaseDownPort}`;
+
+export const databaseDownEnvironment = {
+  ...e2eEnvironment,
+  DATABASE_URL: `${e2eDatabase.appUrl}_inexistente`,
+  BETTER_AUTH_URL: databaseDownUrl,
+};

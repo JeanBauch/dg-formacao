@@ -5,8 +5,17 @@ import {
 } from "@/domain/auth";
 import type { AuthError } from "./auth-client";
 
-// The texts of the account's screens, in pt-BR, kept apart from the markup
-// (RNF-UX-01, 03 and 04).
+// A failure on the server's side, which the person cannot fix but by trying
+// again later.
+const serverFailure =
+  "Algo deu errado do nosso lado. Tente de novo em alguns instantes.";
+
+// A request that never reached the server, as when the network drops.
+const connectionFailure =
+  "Não foi possível concluir agora. Confira a sua conexão e tente de novo.";
+
+// The texts of the sign-up, the sign-in and the user's page, in pt-BR, kept
+// apart from the markup (RNF-UX-01, 03 and 04).
 export const texts = {
   signIn: {
     title: "Entrar",
@@ -15,7 +24,7 @@ export const texts = {
     rememberMe: "Lembrar de mim",
     submit: "Entrar",
     submitting: "Entrando…",
-    noAccount: "Ainda não tem conta?",
+    signUpPrompt: "Ainda não tem conta?",
     signUpLink: "Criar conta",
   },
   signUp: {
@@ -29,9 +38,10 @@ export const texts = {
     submit: "Criar conta",
     submitting: "Criando a conta…",
     loading: "Carregando o formulário…",
-    closed:
-      "O cadastro ainda não está aberto. Volte em breve: avisaremos quando abrir.",
-    hasAccount: "Já tem conta?",
+    // Only what A2.20 says: nothing collects an e-mail to tell anyone when it
+    // opens.
+    closed: "O cadastro ainda não está aberto.",
+    signInPrompt: "Já tem conta?",
     signInLink: "Entrar",
   },
   password: {
@@ -44,7 +54,7 @@ export const texts = {
       strong: "Força da senha: forte.",
     } satisfies Record<PasswordStrength, string>,
   },
-  account: {
+  user: {
     title: "Sua conta",
     loading: "Carregando a sua conta…",
     name: "Nome",
@@ -58,6 +68,13 @@ export const texts = {
       "Enviamos um novo link de confirmação. Confira a sua caixa de entrada.",
     signOut: "Sair",
     signingOut: "Saindo…",
+  },
+  // A private page that failed to render, as when the database drops a
+  // connection.
+  privateAreaError: {
+    title: "Não foi possível abrir esta página",
+    message: serverFailure,
+    retry: "Tentar de novo",
   },
 } as const;
 
@@ -84,14 +101,12 @@ const refusals: Record<string, string> = {
 const tooManyRequests =
   "Muitas tentativas seguidas. Espere um minuto e tente de novo.";
 
-// Whatever else failed: the server's error, or a request that never reached
-// it, as when the network drops.
-const unexpected =
-  "Não foi possível concluir agora. Confira a sua conexão e tente de novo.";
-
-// The message a screen shows for a failed call of the auth client.
+// The message a screen shows for a failed call of the auth client. A request
+// with no answer is the connection's failure; any other answer the screens do
+// not know, a 500 with SIGN_UP_FAILED among them, is the server's.
 export function errorMessage({ code, status }: AuthError) {
   if (code !== undefined && code in refusals) return refusals[code];
   if (status === 429) return tooManyRequests;
-  return unexpected;
+  if (status === 0) return connectionFailure;
+  return serverFailure;
 }

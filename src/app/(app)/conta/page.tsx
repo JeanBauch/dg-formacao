@@ -1,38 +1,38 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
-import { currentAccount } from "@/data/auth";
+import { currentUser } from "@/data/auth";
 import { signInPath } from "@/domain/auth";
-import { AccountDetails } from "@/ui/auth/account-details";
 import { ResendConfirmation } from "@/ui/auth/resend-confirmation";
 import { SignOutButton } from "@/ui/auth/sign-out-button";
 import { texts } from "@/ui/auth/texts";
+import { UserDetails } from "@/ui/auth/user-details";
 
-export const metadata: Metadata = { title: texts.account.title };
+export const metadata: Metadata = { title: texts.user.title };
 
-// The account's page (/conta), the R0's minimal private page: the title is in
-// the static shell, and the account streams in once the session gate has read
-// the session.
-export default function AccountPage() {
+// The user's page (/conta), the R0's minimal private page: the title is in the
+// static shell, and the user streams in once the session gate has read the
+// session.
+export default function UserPage() {
   return (
     <>
-      <h1 className="text-2xl font-semibold">{texts.account.title}</h1>
-      <Suspense fallback={<p className="min-h-24">{texts.account.loading}</p>}>
-        <Account />
+      <h1 className="text-2xl font-semibold">{texts.user.title}</h1>
+      <Suspense fallback={<p className="min-h-24">{texts.user.loading}</p>}>
+        <CurrentUser />
       </Suspense>
     </>
   );
 }
 
 // A cookie the edge let through can still be one of a session that is no
-// longer valid: the gate gives no account, and the page goes to the sign-in.
-async function Account() {
-  const account = await currentAccount();
-  if (account === null) redirect(signInPath("/conta"));
+// longer valid: the gate gives no user, and the page goes to the sign-in.
+async function CurrentUser() {
+  const user = await currentUser();
+  if (user === null) redirect(signInPath("/conta"));
   return (
     <>
-      <AccountDetails account={account} />
-      {!account.emailVerified && <ResendConfirmation email={account.email} />}
+      <UserDetails user={user} />
+      {!user.emailVerified && <ResendConfirmation email={user.email} />}
       <SignOutButton />
     </>
   );

@@ -3,24 +3,28 @@ import { baseUrl } from "./support/environment";
 import { holderState } from "./support/holder-state";
 import { expect, test } from "./support/test";
 
-// Seam 5, against the production server: the account's page, as the seed's
-// holder signed in once by the setup sees it.
+// Seam 5, against the production server: the user's page (/conta), as the
+// seed's holder signed in once by the setup sees it.
 test.use({ storageState: holderState });
 
-test("the account's page shows the holder's name, e-mail and confirmed e-mail", async ({
+test("the user's page shows the holder's name, e-mail and confirmed e-mail", async ({
   page,
 }) => {
   await page.goto("/conta");
 
   await expect(page.getByText(seedHolder.name)).toBeVisible();
   await expect(page.getByText(seedHolder.email)).toBeVisible();
-  await expect(page.getByText("Confirmado")).toBeVisible();
+  // The whole value next to the term: "Ainda não confirmado" holds
+  // "confirmado" too.
+  await expect(
+    page.locator('dt:text-is("Situação do e-mail") + dd'),
+  ).toHaveText("Confirmado");
 });
 
 // A page rendered on the server sets no cookie, so the daily renewal of a
 // remembered session (A2.7) happens on the client's read over Better Auth's
 // HTTP, which renews the session and its cookie when they are due (seam 1).
-test("opening the account's page has the client read the session over Better Auth's HTTP", async ({
+test("opening the user's page has the client read the session over Better Auth's HTTP", async ({
   page,
 }) => {
   const sessionRead = page.waitForResponse(`${baseUrl}/api/auth/get-session`);
@@ -38,7 +42,7 @@ test("opening the account's page has the client read the session over Better Aut
 // in CI (RNF-PER-01's p99). The first request after the server starts loads
 // the route and opens the database's connections, so it warms up first, and
 // each of the next ten must answer in time, the whole page received.
-test("the account's page answers in under 1 s (NF-1)", async ({ page }) => {
+test("the user's page answers in under 1 s (NF-1)", async ({ page }) => {
   const load = async () => {
     const started = performance.now();
     const response = await page.request.get("/conta");

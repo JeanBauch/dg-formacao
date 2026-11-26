@@ -1,5 +1,5 @@
 // Where the sign-in leads when the requested return is missing or refused: the
-// account's page.
+// user's page.
 export const defaultReturnPath = "/conta";
 
 // Characters the browser drops from an address or reads in its own way: the
@@ -25,7 +25,7 @@ export function signInPath(requested: string) {
 
 // The path the sign-in returns to, from the one the request asked for (A2.9a):
 // only a path of the app, which starts with "/" and not with "//" nor "/\".
-// Anything else leads to the account's page. Better Auth refuses the sign-in's
+// Anything else leads to the user's page. Better Auth refuses the sign-in's
 // callback on the same grounds, the encoded separators and any backslash
 // among them, so every path kept here is one it accepts.
 export function returnPath(requested: string | null | undefined) {

@@ -18,7 +18,7 @@ export default function SignUpPage() {
         <SignUpOrClosed />
       </Suspense>
       <p>
-        {texts.signUp.hasAccount}{" "}
+        {texts.signUp.signInPrompt}{" "}
         <Link href="/entrar" className="underline">
           {texts.signUp.signInLink}
         </Link>

@@ -25,7 +25,7 @@ const fieldOfRefusal: Partial<Record<string, SignUpField>> = {
 // Signs up over Better Auth's HTTP, with the adult declaration and the
 // acceptance as the form has them: unchecked, the server refuses the sign-up
 // with what to do (A2.3). The sign-up signs the holder in, and the browser
-// loads the account's page.
+// loads the user's page.
 //
 // The two checkboxes are no fields of the user, so the client's types do not
 // know them: they go in the request's body through its fetch options, which

@@ -14,7 +14,7 @@ describe("the sign-in that keeps the requested path (A2.9)", () => {
 
 // Seam 3: the return after the sign-in accepts only a path of the app (A2.9a,
 // OWASP Unvalidated Redirects and Forwards Cheat Sheet). Any other value leads
-// to the account's page.
+// to the user's page.
 describe("the return after the sign-in (A2.9a)", () => {
   test.each([
     ["/conta", "/conta"],
@@ -40,11 +40,11 @@ describe("the return after the sign-in (A2.9a)", () => {
     ["/%2Fexemplo.com", "carries an encoded /"],
     ["/%5Cexemplo.com", "carries an encoded \\"],
     ["/conta\\exemplo", "carries a \\"],
-  ])("leads %s to the account's page, as it %s", (requested) => {
+  ])("leads %s to the user's page, as it %s", (requested) => {
     expect(returnPath(requested)).toBe("/conta");
   });
 
-  test("leads to the account's page when there is no return", () => {
+  test("leads to the user's page when there is no return", () => {
     expect(returnPath(null)).toBe("/conta");
     expect(returnPath(undefined)).toBe("/conta");
   });

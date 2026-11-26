@@ -3,10 +3,11 @@
 import { useId, useState } from "react";
 import { texts } from "./texts";
 
-// The fields of the account's screens, functional and with no theme of their
-// own until the design system of R1. Each field has its label, shows the focus,
-// and links its error to itself: the error is the field's description, and the
-// field is marked invalid while it has one (WCAG 2.1 AA).
+// The fields of the sign-up, the sign-in and the user's page, functional and
+// with no theme of their own until the design system of R1. Each field has its
+// label, shows the focus, and links its error to itself: the error is the
+// field's description, and the field is marked invalid while it has one (WCAG
+// 2.1 AA).
 
 const inputClass =
   "rounded border border-current bg-transparent px-2 py-1 focus-visible:outline-2 focus-visible:outline-offset-2";

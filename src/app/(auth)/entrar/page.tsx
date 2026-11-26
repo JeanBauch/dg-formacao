@@ -13,7 +13,7 @@ export default function SignInPage() {
       <h1 className="text-2xl font-semibold">{texts.signIn.title}</h1>
       <SignInForm />
       <p>
-        {texts.signIn.noAccount}{" "}
+        {texts.signIn.signUpPrompt}{" "}
         <Link href="/cadastro" className="underline">
           {texts.signIn.signUpLink}
         </Link>
