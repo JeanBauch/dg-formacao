@@ -16,6 +16,8 @@ const stagingEnv = {
   DATABASE_URL:
     "postgresql://fake_user:fake_pass@db.example.test:6543/fake_db?sslmode=require",
   MAILER_ADAPTER: "resend",
+  RESEND_API_KEY: "fake-resend-api-key",
+  MAILER_FROM: "DG Formação <nao-responda@dg-formacao.test>",
 };
 
 describe("a valid configuration", () => {
@@ -136,6 +138,38 @@ describe("the application environment (A1.6)", () => {
       ).toBe("file");
     },
   );
+});
+
+describe("the Resend adapter's configuration", () => {
+  test("is read when the configuration chooses the Resend adapter", () => {
+    expect(parseEnv(stagingEnv)).toMatchObject({
+      RESEND_API_KEY: "fake-resend-api-key",
+      MAILER_FROM: "DG Formação <nao-responda@dg-formacao.test>",
+    });
+  });
+
+  test.each(["RESEND_API_KEY", "MAILER_FROM"])(
+    "without %s, absent or empty, the Resend adapter is refused by that name, with no value printed",
+    (name) => {
+      const absent: Record<string, string | undefined> = { ...stagingEnv };
+      delete absent[name];
+
+      for (const source of [absent, { ...stagingEnv, [name]: "" }]) {
+        const message = messageOf(source);
+
+        expect(message).toContain(name);
+        expect(message).not.toContain("fake-resend-api-key");
+        expect(message).not.toContain("nao-responda");
+      }
+    },
+  );
+
+  test("is not asked of the file adapter", () => {
+    expect(
+      parseEnv({ ...localEnv, RESEND_API_KEY: "", MAILER_FROM: "" })
+        .MAILER_ADAPTER,
+    ).toBe("file");
+  });
 });
 
 describe("the public sign-up switch (A1.13)", () => {

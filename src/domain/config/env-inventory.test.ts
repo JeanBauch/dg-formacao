@@ -56,6 +56,8 @@ describe("the environment inventory (A1.7)", () => {
       APP_ENV: (value) => value === "local",
       SIGNUP_ENABLED: (value) => value === "true",
       MAILER_ADAPTER: (value) => value === "file",
+      RESEND_API_KEY: (value) => value === "",
+      MAILER_FROM: (value) => value === "",
       SECURITY_EVENTS_DAILY_CAP: (value) => value === "1000",
       VERCEL: (value) => value === "",
       DATABASE_URL: (value) =>

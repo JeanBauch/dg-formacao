@@ -1,7 +1,7 @@
-# Local Postgres 17 for development and the database tests. Start it with
-# `pnpm db:up`. The credentials are fictitious and the same as the CI service
-# container. The database tests create their own database in this container,
-# apart from the development one (dg_formacao).
+# Local Postgres 17 for development, the database tests and the E2E. Start it
+# with `pnpm db:up`. The credentials are fictitious and the same as the CI
+# service container. The database tests and the E2E each create a database of
+# their own in this container, apart from the development one (dg_formacao).
 name: dg-formacao
 
 services:

@@ -82,5 +82,10 @@ test.each([
     await expect(failure).rejects.toThrow(message);
     await expect(failure).rejects.toThrow(/`pnpm db:up`/);
     await expect(failure).rejects.not.toThrow(/not answering/);
+    // The E2E's setup runs the same check before its first test.
+    await expect(failure).rejects.toThrow(
+      /^These tests need the local Postgres/,
+    );
+    await expect(failure).rejects.not.toThrow(/database tests/);
   },
 );
