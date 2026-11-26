@@ -117,7 +117,7 @@ export function servedOverHttp({ handler, $context }: BetterAuthHttp): Handler {
         statusText: "Internal Server Error",
       });
     }
-    // With onAPIError.throw on, the router no longer logs a server error it answers itself
+    // A server error Better Auth answers itself (see Errors and logs)
     if (response.status >= 500)
       await logError(
         `An auth request to ${routePattern(route)} answered ${response.status}`,
@@ -174,7 +174,8 @@ export function printAuthLog(
 }
 ```
 
-- **An unexpected error leaves the router without being printed by it, and Better Auth's logger goes through a filter.** Better Auth's router and the route library under it print the whole error, and the error of a failed query carries its values: e-mail, name, password hash, token, IP. With `onAPIError.throw`, the app's handler logs only the error's name and code and answers 500. Better Auth's logger prints each error it catches the same way, so `logger.log` keeps each one to its name and code, and leaves out the other values that come with the message (RNF-OBS-01). Tests: `sign-up.db.test.ts`, "a sign-up whose login identity write fails" (the handler's line) and "a sign-up whose user write fails" (the logger's line); `sign-in.db.test.ts`, "logs the failure without the session's token (RNF-OBS-01)"; `routes.db.test.ts`, "a route that answers with a server error".
+- **An unexpected error leaves the router without being printed by it, and Better Auth's logger goes through a filter.** Better Auth's router and the route library under it print the whole error, and the error of a failed query carries its values: e-mail, name, password hash, token, IP. With `onAPIError.throw`, the app's handler logs only the error's name and code and answers 500. Better Auth's logger prints each error it catches the same way, so `logger.log` keeps each one to its name and code, and leaves out the other values that come with the message (RNF-OBS-01). Tests: `sign-up.db.test.ts`, "a sign-up whose login identity write fails" (the handler's line) and "a sign-up whose user write fails" (the logger's line); `sign-in.db.test.ts`, "logs the failure without the session's token (RNF-OBS-01)".
+- **The log of a server error names the route by its pattern, never by the path as received.** With `onAPIError.throw` on, the router no longer logs a server error that Better Auth answers itself, so the app's handler logs a line with the status and the route; without it, a failure such as the session read's would reach the user as a 500 that no line names. The route goes through `routePattern`, because the path of the password reset's link carries the token, and a route outside its list is logged as `other`. No test shows that this line names the pattern rather than the path: `routes.db.test.ts`, "is logged with the status and the route (RNF-OBS-01)", uses `/get-session`, whose pattern is the path itself. What `routePattern` returns is covered through the security log, a token's segment and a route outside the list included: `src/data/audit/security-events.db.test.ts`, "whose route keeps %s".
 - **The base path is explicit** because the app's handler strips it to get the route that the rate limit and the security log use. Test: `rate-limit.db.test.ts`, "of a sign-in spelled with a trailing slash names the sign-in's route".
 
 ## E-mail

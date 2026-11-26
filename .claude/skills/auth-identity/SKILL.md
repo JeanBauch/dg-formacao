@@ -48,6 +48,6 @@ Sign-up, sign-in, password reset and e-mail verification forms use the Better Au
 
 - U4: the admin plugin stores several roles comma-separated in `role` and honours all of them.
 - U5: a password-reset request returns the same response for an unknown e-mail.
-- U6: `after()` works inside Better Auth's e-mail callbacks, since they run in the request scope of the route handler. Proven for the confirmation e-mail on the production server (#15, `e2e/email-confirmation.spec.ts`); the password reset's stays with #23.
+- U6: `after()` works inside Better Auth's e-mail callbacks, since they run in the request scope of the route handler. Proven for the confirmation e-mail on the production server (#15) by `e2e/email-confirmation.spec.ts` together with the mailer's unit test (`src/infra/mailer/mailer.test.ts`, "the file adapter holds the send in after(), and the message reaches the mailbox only when Next runs it"), because the E2E alone also passes without the deferral; the password reset's stays with #23.
 - U11: `disabledPaths` is checked only by the HTTP router, so the admin plugin's permission check, called by the server, still works with its HTTP route disabled (CONFIG.md, STAFF.md).
 - U12: Better Auth deletes the expired rate-limit rows in the database. The 1.5 release notes mention the automatic cleanup only for in-memory storage, so read the 1.7.15 code. The daily job deletes them either way (CONFIG.md).
