@@ -43,9 +43,9 @@ Read the report's `Status`:
 
 ## 5. Verify
 
-Run `pnpm format:check`, `pnpm lint`, `pnpm typecheck` and `pnpm test` yourself, each on its own, with `CI=true` set as the CI sets it (in Bash: `CI=true pnpm test`). Some tools behave differently under `CI=true` (typescript-eslint, for one), so a run without it does not predict the CI. `git log main..HEAD --oneline` must show at least one `feat(#<n>)` commit.
+Run `pnpm format:check`, `pnpm lint`, `pnpm typecheck` and `pnpm test` yourself, each on its own, with `CI=true` set as the CI sets it (in Bash: `CI=true pnpm test`). Some tools behave differently under `CI=true` (typescript-eslint, for one), so a run without it does not predict the CI. Then run each command in the ticket's verification section that these four do not cover (a build, an E2E run), in the order the ticket gives. `git log main..HEAD --oneline` must show at least one `feat(#<n>)` commit.
 
-Done when all four exit 0. Their output is the PR's evidence.
+Done when all four, and the ticket's own commands, exit 0. Their output is the PR's evidence.
 
 ## 6. Review
 
@@ -76,6 +76,7 @@ Escalate once per ticket. If Opus also returns `stuck`, stop and hand the failin
 1. Write the body with the Skill tool `mattpocock-skills:pr`. Include:
    - `Closes #<n>`, and `Closes #<spec>` when this is the spec's last open ticket;
    - the step 5 evidence;
+   - the red run of each criterion, copied from the implementer's `Red:` lines and attributed to the implementer; a red you rebuild afterwards is labelled as rebuilt;
    - a findings table (finding, verdict, reason);
    - the model used and whether it escalated.
 2. `git push -u origin feat/<n>-<slug>`. The human approves the push.
@@ -101,7 +102,7 @@ Comment on the ticket with one line:
 
 `Métricas: modelo=<sonnet|opus|sonnet→opus> · findings=<fix>/<accept>/<reject> · assumptions=<n> · ci-vermelho=<n>`
 
-`assumptions` counts the ASSUMPTION items on the ticket. An item that a later `ASSUMPTION (substitui ...)` comment replaces counts once.
+`findings` counts the rows of the PR's findings table, one verdict each, including the items the fix call returned. `assumptions` counts the ASSUMPTION items on the ticket. An item that a later `ASSUMPTION (substitui ...)` comment replaces counts once.
 
 Then tell the human:
 

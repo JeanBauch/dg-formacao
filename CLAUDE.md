@@ -13,6 +13,10 @@ Claude Code reads this file instead of AGENTS.md, so the Next.js agent rules are
 - Tests related to changed files: `pnpm vitest related --run <files>`
 - Typecheck: `pnpm typecheck` · Lint: `pnpm lint` · Unit: `pnpm test` · E2E: `pnpm test:e2e`
 - Local services: the database tests need the local Postgres; start it with `pnpm db:up` (Docker must be running).
+- Development database, in this order: `pnpm db:up` · `pnpm db:roles part-1` · `pnpm db:migrate` · `pnpm db:roles part-2` · `pnpm db:seed`.
+- `pnpm test:e2e` needs the local Postgres (`pnpm db:up`) and a `pnpm build` of the current code: it serves the last build, even a stale one.
+- `pnpm build` needs the required configuration variables, from `.env.local` or exported in the shell.
+- Like the database tests, `pnpm test:e2e` never runs at the same time as another test run: its setup alters the roles, which belong to the whole Postgres instance.
 
 ## Workflow rules
 
@@ -29,6 +33,8 @@ Claude Code reads this file instead of AGENTS.md, so the Next.js agent rules are
 
 - Multi-line edits: use Edit/Write, not line-number `sed`/`head` splicing. Splicing misplaces code, and the format hook only fires on Edit/Write.
 - Never pipe a check into another command before `&&` (`pnpm format:check | tail -3 && git commit`): the pipe hides the failing exit code.
+- Long text for a command (a script, a PR or issue body): write it to a file with Write, then pass the file (`--body-file`, `node <file>.mjs`). Heredocs break on quotes and backticks.
+- Never run the database suite (`pnpm test`) in the background: there is a single test database, and the verify-gate hook runs tests too.
 
 <!-- Filled by /retro: only things Claude got wrong twice. -->
 
