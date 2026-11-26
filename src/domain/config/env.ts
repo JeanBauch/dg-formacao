@@ -1,6 +1,7 @@
 import { z } from "zod";
 
-const hostedEnvironments = ["staging", "production"];
+// The environments whose database is hosted; local and ci have their own.
+export const hostedEnvironments = ["staging", "production"];
 const tlsModes = ["require", "verify-ca", "verify-full"];
 
 const envSchema = z

@@ -7,7 +7,8 @@ import { createFakeMailer } from "@/infra/mailer/fake";
 //   vi.mock("@/infra/mailer", () => import("@/test/mailer"));
 //
 // A test file imports `fakeMailer` to read what was sent and to hold or fail
-// the sends, and the setup resets it before each test.
+// the sends, and the setup resets it before each test. The seed script puts it
+// in place of the mailer by its own hooks, and reads the links it captured.
 export const fakeMailer = createFakeMailer();
 
 // What `@/infra/mailer` exports under the tests.
