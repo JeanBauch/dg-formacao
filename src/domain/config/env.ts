@@ -12,6 +12,11 @@ const envSchema = z
       .transform((value) => value === "true"),
     DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
     MAILER_ADAPTER: z.enum(["file", "resend"]),
+    // The Resend adapter's key and sender, both required when it is chosen (see
+    // the check below). Their values are the provider account's, which spec B
+    // sets up, so only their presence is checked here.
+    RESEND_API_KEY: z.string().optional(),
+    MAILER_FROM: z.string().optional(),
     // The security log's daily cap of new rows (A5.14): whole decimal digits,
     // from 1 to 2,000. A larger cap first needs a new budget in RNF-SEG-15.
     SECURITY_EVENTS_DAILY_CAP: z
@@ -62,6 +67,19 @@ const envSchema = z
         message: "the file adapter is allowed only when APP_ENV is local or ci",
         input: env.MAILER_ADAPTER,
       });
+    }
+
+    if (env.MAILER_ADAPTER === "resend") {
+      for (const name of ["RESEND_API_KEY", "MAILER_FROM"] as const) {
+        if (!env[name]) {
+          ctx.issues.push({
+            code: "custom",
+            path: [name],
+            message: "is required when MAILER_ADAPTER is resend",
+            input: env[name],
+          });
+        }
+      }
     }
   });
 

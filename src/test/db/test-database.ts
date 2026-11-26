@@ -10,8 +10,6 @@ import postgres from "postgres";
 const host = "localhost";
 const port = 5432;
 
-export const testDatabaseName = "dg_formacao_test";
-
 export const rolePasswords = {
   app: "dg_app",
   migrations: "dg_migrations",
@@ -22,24 +20,28 @@ function databaseUrl(user: string, password: string, database: string) {
   return `postgresql://${user}:${password}@${host}:${port}/${database}`;
 }
 
-export const testDatabase = {
-  // The container's superuser on its maintenance database, which can drop and
-  // create the test database.
-  serverUrl: databaseUrl("postgres", "postgres", "postgres"),
-  // The administrator credential, which part 1 of the roles script uses.
-  adminUrl: databaseUrl("postgres", "postgres", testDatabaseName),
-  appUrl: databaseUrl("dg_app", rolePasswords.app, testDatabaseName),
-  migrationsUrl: databaseUrl(
-    "dg_migrations",
-    rolePasswords.migrations,
-    testDatabaseName,
-  ),
-  readonlyUrl: databaseUrl(
-    "dg_readonly",
-    rolePasswords.readonly,
-    testDatabaseName,
-  ),
-};
+// One database of the container, with the URL each of its users connects by.
+function localDatabase(name: string) {
+  return {
+    name,
+    // The container's superuser on its maintenance database, which can drop and
+    // create the database.
+    serverUrl: databaseUrl("postgres", "postgres", "postgres"),
+    // The administrator credential, which part 1 of the roles script uses.
+    adminUrl: databaseUrl("postgres", "postgres", name),
+    appUrl: databaseUrl("dg_app", rolePasswords.app, name),
+    migrationsUrl: databaseUrl("dg_migrations", rolePasswords.migrations, name),
+    readonlyUrl: databaseUrl("dg_readonly", rolePasswords.readonly, name),
+  };
+}
+
+export type LocalDatabase = ReturnType<typeof localDatabase>;
+
+export const testDatabase = localDatabase("dg_formacao_test");
+
+// The database of the E2E's server, apart from the development one and from the
+// one above, which every run of the database tests drops and creates again.
+export const e2eDatabase = localDatabase("dg_formacao_e2e");
 
 // One connection, quiet about notices. The caller ends it.
 export function connect(url: string) {

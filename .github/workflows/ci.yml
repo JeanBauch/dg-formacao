@@ -17,8 +17,10 @@ jobs:
   ci:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    # The database tests create their own database here and migrate it from
-    # scratch on every run. Same image and fictitious credentials as compose.yaml.
+    # The database tests and the E2E each create a database of their own here,
+    # set up from scratch on every run by the roles script and the migrations;
+    # the E2E also seeds its one. Same image and fictitious credentials as
+    # compose.yaml.
     services:
       postgres:
         image: postgres:17
@@ -45,6 +47,16 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
+      # The build loads each route's module, which validates the configuration:
+      # fictitious values, of which the server reads its own again when it starts.
       - run: pnpm build
+        env:
+          APP_ENV: ci
+          SIGNUP_ENABLED: "true"
+          DATABASE_URL: postgresql://dg_app:dg_app@localhost:5432/dg_formacao_e2e
+          MAILER_ADAPTER: file
       - run: pnpm exec playwright install --with-deps chromium
+      # Against that build's production server. Before the first test, the E2E's
+      # database gets part 1 of the roles script, the migrations from scratch,
+      # part 2 and the seed's holder (e2e/database.setup.ts).
       - run: pnpm test:e2e

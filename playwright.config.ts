@@ -1,7 +1,6 @@
+import { randomBytes } from "node:crypto";
 import { defineConfig, devices } from "@playwright/test";
-
-// Its own port, so a dev server already running is never hit.
-const PORT = Number(process.env.PORT ?? 3100);
+import { baseUrl, e2eEnvironment, port } from "./e2e/support/environment";
 
 export default defineConfig({
   testDir: "./e2e",
@@ -10,21 +9,28 @@ export default defineConfig({
   retries: 0,
   reporter: process.env.CI ? "github" : "list",
   use: {
-    baseURL: `http://localhost:${PORT}`,
+    baseURL: baseUrl,
     trace: "retain-on-failure",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    { name: "database", testMatch: "database.setup.ts" },
+    {
+      name: "chromium",
+      use: { ...devices["Desktop Chrome"] },
+      dependencies: ["database"],
+    },
+  ],
   webServer: {
-    // CI runs `pnpm build` first, so it serves the production build; locally it starts a dev server.
-    command: `${process.env.CI ? "pnpm start" : "pnpm dev"} --port ${PORT}`,
-    url: `http://localhost:${PORT}`,
-    // The server refuses to start without a valid configuration; these are the fictitious
-    // local values of .env.example.
+    // Next's production server, locally and in CI, never the dev server: it
+    // serves the build `pnpm build` made.
+    command: `pnpm start --port ${port}`,
+    url: baseUrl,
+    // The server refuses to start without a valid configuration. Better Auth
+    // refuses its default secret in production: this one is made anew on each
+    // run, so no secret is ever written down.
     env: {
-      APP_ENV: process.env.CI ? "ci" : "local",
-      SIGNUP_ENABLED: "true",
-      DATABASE_URL: "postgresql://dg_app:dg_app@localhost:5432/dg_formacao",
-      MAILER_ADAPTER: "file",
+      ...e2eEnvironment,
+      BETTER_AUTH_SECRET: randomBytes(32).toString("base64"),
     },
     reuseExistingServer: false,
     timeout: 120_000,

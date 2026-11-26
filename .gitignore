@@ -46,6 +46,9 @@ next-env.d.ts
 /playwright-report/
 /blob-report/
 
+# the file adapter's mailbox (local and CI only): its messages carry live links
+/.mailbox/
+
 # Claude Code (local only)
 CLAUDE.local.md
 .claude/settings.local.json

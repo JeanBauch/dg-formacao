@@ -248,6 +248,8 @@ describe("the seed of the holder (A1.8)", () => {
         APP_ENV: "production",
         DATABASE_URL: `${testDatabase.appUrl}?sslmode=require`,
         MAILER_ADAPTER: "resend",
+        RESEND_API_KEY: "fake-resend-api-key",
+        MAILER_FROM: "nao-responda@dg-formacao.test",
       }),
     ).rejects.toThrow("The seed runs only with APP_ENV local or ci");
 
