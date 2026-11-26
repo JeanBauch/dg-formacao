@@ -18,3 +18,15 @@ export const e2eEnvironment = {
   // Better Auth starts the links of its e-mails with this address.
   BETTER_AUTH_URL: baseUrl,
 };
+
+// A second server of the same build, on the next port, started with the
+// public sign-up closed (A2.20). Only the sign-up page's test goes to it.
+export const closedSignUpPort = port + 1;
+
+export const closedSignUpUrl = `http://localhost:${closedSignUpPort}`;
+
+export const closedSignUpEnvironment = {
+  ...e2eEnvironment,
+  SIGNUP_ENABLED: "false",
+  BETTER_AUTH_URL: closedSignUpUrl,
+};
