@@ -4,6 +4,7 @@ import { auth } from "@/data/auth";
 import { testBaseUrl } from "@/test/base-url";
 import { connect, testDatabase } from "@/test/db/test-database";
 import { nextTestIp } from "@/test/ip";
+import { fakeMailer, linkOf } from "@/test/mailer";
 
 // The public sign-up is closed in this file, as in production until DP-02,
 // DP-04 and DP-11 are answered (A1.13). The configuration is read when the code
@@ -82,5 +83,46 @@ describe("with the public sign-up closed (A2.20)", () => {
     });
 
     expect(response.status).toBe(200);
+  });
+
+  test("a holder who has an account still resets the password by the e-mail's link", async () => {
+    const form = holder();
+    await auth.api.signUpEmail({ body: form });
+    await fakeMailer.reset();
+
+    const requested = await post("/request-password-reset", {
+      email: form.email,
+      redirectTo: "/redefinir-senha",
+    });
+    // The link, opened as a webmail opens it, sends the browser on to the app's
+    // page with the token.
+    const opened = await auth.handler(
+      new Request(linkOf(fakeMailer.sent[0]), {
+        headers: {
+          "sec-fetch-site": "cross-site",
+          "sec-fetch-mode": "navigate",
+          "sec-fetch-dest": "document",
+          "x-forwarded-for": nextTestIp(),
+        },
+      }),
+    );
+    const token = new URL(
+      opened.headers.get("location") ?? "",
+    ).searchParams.get("token");
+    const reset = await post("/reset-password", {
+      token,
+      newPassword: "senha-nova-de-teste-2",
+    });
+
+    expect(requested.status).toBe(200);
+    expect(reset.status).toBe(200);
+    expect(
+      (
+        await post("/sign-in/email", {
+          email: form.email,
+          password: "senha-nova-de-teste-2",
+        })
+      ).status,
+    ).toBe(200);
   });
 });

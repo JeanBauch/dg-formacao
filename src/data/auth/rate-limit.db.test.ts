@@ -153,6 +153,52 @@ describe("the rate limit of the sign-up (A2.11)", () => {
   });
 });
 
+// The requests that send an e-mail: a password reset and another confirmation,
+// for an e-mail with no account, which Better Auth answers as it answers one
+// with an account.
+const emailRequests = [
+  [
+    "/request-password-reset",
+    { email: "ninguem-cadastrado@example.com", redirectTo: "/redefinir-senha" },
+  ],
+  ["/send-verification-email", { email: "ninguem-cadastrado@example.com" }],
+] as const;
+
+describe("the rate limit of the requests that send an e-mail (A3.8)", () => {
+  test.each(emailRequests)(
+    "answers 429 to the 4th request from the same IP to %s within 60 s, and keeps the counter in the app schema",
+    async (route, body) => {
+      const ip = nextTestIp();
+      const statuses: number[] = [];
+
+      for (let request = 1; request <= 3; request += 1) {
+        statuses.push((await post(route, body, ip)).status);
+      }
+      secondsLater(59);
+      statuses.push((await post(route, body, ip)).status);
+
+      expect(statuses).toEqual([200, 200, 200, 429]);
+      expect(await counter(ip, route)).toEqual([{ count: 3 }]);
+    },
+  );
+
+  test.each(emailRequests)(
+    "counts each IP apart: another IP still gets its first request to %s through",
+    async (route, body) => {
+      const blocked = nextTestIp();
+      for (let request = 1; request <= 4; request += 1) {
+        await post(route, body, blocked);
+      }
+
+      const other = nextTestIp();
+      const response = await post(route, body, other);
+
+      expect(response.status).toBe(200);
+      expect(await counter(other, route)).toEqual([{ count: 1 }]);
+    },
+  );
+});
+
 // The names the rules of the rate limit match a route by are the names of its
 // counters: Better Auth keys both on the request's path without the base path.
 describe("the names of the routes in the rate limit of Better Auth 1.7 (U9)", () => {
