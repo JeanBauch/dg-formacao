@@ -43,6 +43,8 @@ next-env.d.ts
 
 # playwright
 /test-results/
+# the E2E's signed-in browser states: each holds a live session
+/e2e/.auth/
 /playwright-report/
 /blob-report/
 

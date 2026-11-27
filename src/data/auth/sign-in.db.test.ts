@@ -193,6 +193,33 @@ describe("a sign-in with the right e-mail and password (A2.7)", () => {
       });
     });
   });
+
+  describe("without 'Lembrar de mim', the session", () => {
+    // The holder signs in at the instant.
+    stopClockAtInstant();
+
+    // The read of the session that renews a remembered one, as the client of a
+    // private page makes it. Better Auth never renews a session that is not
+    // remembered: it lasts its day, and its cookie keeps no expiry.
+    test("read later in its day keeps its expiry, and its cookie stays one that ends when the browser closes", async () => {
+      const { email, userId } = await signedInHolder();
+      const response = await post("/sign-in/email", {
+        email,
+        password,
+        rememberMe: false,
+      });
+      const token = await sessionToken(response);
+      vi.setSystemTime(instant.getTime() + day - 60 * 60_000);
+
+      const use = await get("/get-session", cookiesOf(response));
+
+      expect(await use.json()).toMatchObject({ user: { id: userId } });
+      expect(await sessionExpiry(token)).toEqual(
+        new Date(instant.getTime() + day),
+      );
+      expect(cookieAttributes(use, sessionCookie)).toBeUndefined();
+    });
+  });
 });
 
 // The sessions with this token in the database: one, or none.
@@ -486,6 +513,44 @@ describe("a sign-in with a wrong e-mail or password (A2.10)", () => {
         code: "INVALID_EMAIL_OR_PASSWORD",
         message: "Invalid email or password",
       },
+    });
+  });
+});
+
+describe("a sign-in with a return address (A2.9a)", () => {
+  test("of another domain is refused, with no session", async () => {
+    const { email, userId } = await signedInHolder();
+    await owner`delete from app.session where user_id = ${userId}`;
+
+    const response = await post("/sign-in/email", {
+      email,
+      password,
+      callbackURL: "https://exemplo.com/conta",
+    });
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({
+      code: "INVALID_CALLBACK_URL",
+    });
+    expect(cookieAttributes(response, sessionCookie)).toBeUndefined();
+    const [{ sessions }] = await owner<{ sessions: number }[]>`
+      select count(*)::int as sessions from app.session where user_id = ${userId}`;
+    expect(sessions).toBe(0);
+  });
+
+  test("of a path of the app signs in and answers that path to return to", async () => {
+    const { email } = await signedInHolder();
+
+    const response = await post("/sign-in/email", {
+      email,
+      password,
+      callbackURL: "/conta",
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      redirect: true,
+      url: "/conta",
     });
   });
 });

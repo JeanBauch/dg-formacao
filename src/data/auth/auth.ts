@@ -6,6 +6,7 @@ import { admin } from "better-auth/plugins";
 import { v7 as uuidv7 } from "uuid";
 import { db } from "@/data/db/client";
 import * as schema from "@/data/db/schema";
+import { holderPasswordMinLength } from "@/domain/auth";
 import { env } from "@/env";
 import {
   passwordResetLinkLifetime,
@@ -35,7 +36,8 @@ const betterAuthInstance = betterAuth({
   }),
   emailAndPassword: {
     enabled: true,
-    minPasswordLength: 8, // RF-AUT-01
+    // RF-AUT-01, the same length the sign-up form's strength calls too short.
+    minPasswordLength: holderPasswordMinLength,
     // RF-AUT-02: the verification gates a child profile (R3), not the sign-in.
     requireEmailVerification: false,
     resetPasswordTokenExpiresIn: passwordResetLinkLifetime.seconds, // RF-AUT-04
@@ -86,8 +88,16 @@ const betterAuthInstance = betterAuth({
       },
     },
   },
-  // The same UUIDv7 generator as every other table (skill data-layer).
-  advanced: { database: { generateId: () => uuidv7() } },
+  advanced: {
+    // Better Auth checks the request's origin and every return address it is
+    // sent against the app's own origin, but skips both checks when NODE_ENV
+    // is "test". Off is stated outright, so the database tests meet the checks
+    // production runs: a sign-in that asks to return to another domain is
+    // refused (A2.9a).
+    disableOriginCheck: false,
+    // The same UUIDv7 generator as every other table (skill data-layer).
+    database: { generateId: () => uuidv7() },
+  },
   // nextCookies stays last, as the Better Auth docs require.
   plugins: [admin(), signUpConfirmation, nextCookies()],
 });
