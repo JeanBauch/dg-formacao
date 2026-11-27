@@ -1,7 +1,7 @@
 import "server-only";
 import { recordSecurityEvent } from "@/data/audit";
 import { routePattern } from "@/domain/audit";
-import { loggable } from "./loggable";
+import { type ErrorLogger, loggable } from "./loggable";
 import { requesterOf } from "./requester";
 
 // Where Better Auth's router serves its routes.
@@ -117,7 +117,7 @@ type Handler = (request: Request) => Promise<Response>;
 // logger of its context.
 type BetterAuthHttp = {
   handler: Handler;
-  $context: Promise<{ logger: { error(message: string): void } }>;
+  $context: Promise<{ logger: ErrorLogger }>;
 };
 
 type LogError = (message: string) => Promise<void>;

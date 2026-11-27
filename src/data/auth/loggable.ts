@@ -27,6 +27,9 @@ export function loggable(error: unknown) {
   return code === undefined ? error.name : `${error.name} (${code})`;
 }
 
+// What the app's code uses of Better Auth's logger, the one of its context.
+export type ErrorLogger = { error(message: string): void };
+
 type LogLevel = "debug" | "info" | "warn" | "error";
 
 // Prints a line of the log under the label of what wrote it, as in

@@ -13,8 +13,9 @@ import { testBaseUrl } from "@/test/base-url";
 import { printedDuring } from "@/test/console";
 import { cookiesOf } from "@/test/cookies";
 import { connect, testDatabase } from "@/test/db/test-database";
+import { closedGate, type Gate, removeGate } from "@/test/db/write-gate";
 import { nextTestIp } from "@/test/ip";
-import { fakeMailer, linkOf } from "@/test/mailer";
+import { fakeMailer, linkOf, openLink, resetTokenOf } from "@/test/mailer";
 
 // Seam 1: the Better Auth HTTP handler, in the process, over the test database,
 // with the e-mail going through the in-process adapter. The code under test
@@ -97,29 +98,6 @@ async function resetLinkFor(email: string) {
   return linkOf(message);
 }
 
-// A link of an e-mail, opened as a webmail opens it: the browser navigates its
-// tab to it from another site, which the handler lets through (#12).
-function open(link: string) {
-  return auth.handler(
-    new Request(link, {
-      headers: {
-        "sec-fetch-site": "cross-site",
-        "sec-fetch-mode": "navigate",
-        "sec-fetch-dest": "document",
-        "x-forwarded-for": nextTestIp(),
-      },
-    }),
-  );
-}
-
-// The token the app's page receives once the link is opened: Better Auth sends
-// the browser on to the page with it.
-async function tokenOf(link: string) {
-  const response = await open(link);
-  const destination = new URL(response.headers.get("location") ?? "");
-  return destination.searchParams.get("token") ?? "";
-}
-
 // What the app's page sends to set the new password.
 function resetPassword(token: string, chosen = newPassword, ip = nextTestIp()) {
   return post("/reset-password", { token, newPassword: chosen }, { ip });
@@ -185,17 +163,23 @@ describe("a password reset request (A3.5, U5)", () => {
 // The destination is the app's page the link sends the holder to. Without it,
 // the link would end on Better Auth's own error page, which is disabled (#13).
 describe("the destination of a password reset request", () => {
-  test("is required: a request without it is refused, and sends nothing", async () => {
+  test("is required: a request without it is refused, the same for an e-mail with an account and one without, and sends nothing", async () => {
     const account = await signedUp();
 
-    const response = await post("/request-password-reset", {
-      email: account.email,
-    });
+    const withAccount = await answerOf(
+      await post("/request-password-reset", { email: account.email }),
+    );
+    const withoutAccount = await answerOf(
+      await post("/request-password-reset", {
+        email: "sem-conta-sem-destino@example.com",
+      }),
+    );
 
-    expect(response.status).toBe(400);
-    expect(await response.json()).toMatchObject({
+    expect(withAccount.status).toBe(400);
+    expect(JSON.parse(withAccount.body)).toMatchObject({
       code: "RESET_DESTINATION_REQUIRED",
     });
+    expect(withoutAccount).toEqual(withAccount);
     await fakeMailer.settled();
     expect(fakeMailer.sent).toEqual([]);
   });
@@ -219,7 +203,7 @@ describe("a password reset by the e-mail's link (A3.6)", () => {
     const account = await signedUp();
     const otherDevice = cookiesOf(await signIn(account.email, password));
     expect(await sessionsOf(account.userId)).toBe(2);
-    const token = await tokenOf(await resetLinkFor(account.email));
+    const token = await resetTokenOf(await resetLinkFor(account.email));
 
     const response = await resetPassword(token);
 
@@ -235,10 +219,10 @@ describe("a password reset by the e-mail's link (A3.6)", () => {
   test("works once: used again, the link sends the holder to the app's page with the error, and its token is refused", async () => {
     const account = await signedUp();
     const link = await resetLinkFor(account.email);
-    const token = await tokenOf(link);
+    const token = await resetTokenOf(link);
     await resetPassword(token);
 
-    const opened = await open(link);
+    const opened = await openLink(link);
     const sent = await resetPassword(token, "senha-de-outra-tentativa-3");
 
     expect(opened.status).toBe(302);
@@ -263,7 +247,7 @@ describe("a password reset by the e-mail's link (A3.6)", () => {
         await owner`
           update app."user" set role = ${role} where id = ${account.userId}`;
         expect(await emailVerified(account.userId)).toBe(false);
-        const token = await tokenOf(await resetLinkFor(account.email));
+        const token = await resetTokenOf(await resetLinkFor(account.email));
 
         const response = await resetPassword(token, staffLengthPassword);
 
@@ -285,7 +269,7 @@ describe("a password reset by the e-mail's link (A3.6)", () => {
 
       test("still answers success with the new password in force, logs the failure without the e-mail, and leaves the verification pending", async () => {
         const account = await signedUp();
-        const token = await tokenOf(await resetLinkFor(account.email));
+        const token = await resetTokenOf(await resetLinkFor(account.email));
 
         const { result: response, printed } = await printedDuring(() =>
           resetPassword(token),
@@ -325,7 +309,7 @@ describe("a password reset by the e-mail's link (A3.6)", () => {
       const link = await resetLinkFor(account.email);
 
       minutesLater(29);
-      const response = await resetPassword(await tokenOf(link));
+      const response = await resetPassword(await resetTokenOf(link));
 
       expect(response.status).toBe(200);
       expect((await signIn(account.email, newPassword)).status).toBe(200);
@@ -334,10 +318,10 @@ describe("a password reset by the e-mail's link (A3.6)", () => {
     test("no longer does 31 minutes later: the link sends the holder to the app's page with the error, its token is refused, and the password stays", async () => {
       const account = await signedUp();
       const link = await resetLinkFor(account.email);
-      const token = await tokenOf(link);
+      const token = await resetTokenOf(link);
 
       minutesLater(31);
-      const opened = await open(link);
+      const opened = await openLink(link);
       const sent = await resetPassword(token);
 
       expect(opened.status).toBe(302);
@@ -348,6 +332,110 @@ describe("a password reset by the e-mail's link (A3.6)", () => {
       expect(await sent.json()).toMatchObject({ code: "INVALID_TOKEN" });
       expect((await signIn(account.email, password)).status).toBe(200);
     });
+  });
+});
+
+// Someone who knows the old password, the reason a holder resets it, signs in
+// with it while the reset runs. Better Auth's sign-in reads the password, checks
+// it, and only then writes the session; its reset revokes the sessions and saves
+// the new password in one transaction. Whichever way the two cross, the sign-in
+// keeps no session (A3.6).
+describe("a sign-in with the old password that runs alongside the password reset (A3.6)", () => {
+  let gate: Gate | undefined;
+
+  afterEach(async () => {
+    await removeGate(owner, gate);
+    gate = undefined;
+  });
+
+  test("loses its session when it writes it while the reset's transaction is still open", async () => {
+    const account = await signedUp();
+    const token = await resetTokenOf(await resetLinkFor(account.email));
+    // The reset stops at the new password's write, after it has revoked the
+    // sessions and before it commits.
+    gate = await closedGate(owner, "update", "account", account.userId);
+    const reset = resetPassword(token);
+    await gate.reached();
+
+    const signedIn = await signIn(account.email, password);
+    await gate.open();
+
+    expect(signedIn.status).toBe(200);
+    expect((await reset).status).toBe(200);
+    expect(await sessionsOf(account.userId)).toBe(0);
+    expect(
+      await (await get("/get-session", cookiesOf(signedIn))).json(),
+    ).toBeNull();
+  });
+
+  test("is refused as a wrong password when it writes its session after the reset has ended, and keeps no session", async () => {
+    const account = await signedUp();
+    const token = await resetTokenOf(await resetLinkFor(account.email));
+    // The sign-in has read and checked the old password, and stops at its
+    // session's write until the reset has answered.
+    gate = await closedGate(owner, "insert", "session", account.userId);
+    const signingIn = signIn(account.email, password);
+    await gate.reached();
+    expect((await resetPassword(token)).status).toBe(200);
+
+    await gate.open();
+    const signedIn = await signingIn;
+
+    expect(signedIn.status).toBe(401);
+    expect(await signedIn.json()).toEqual({
+      code: "INVALID_EMAIL_OR_PASSWORD",
+      message: "Invalid email or password",
+    });
+    expect(signedIn.headers.getSetCookie()).toEqual([]);
+    expect(await sessionsOf(account.userId)).toBe(0);
+    expect(
+      await owner`
+        select event, details, count from app.security_events
+        where user_id = ${account.userId}
+          and event in ('sign_in_succeeded', 'sign_in_failed')`,
+    ).toEqual([
+      {
+        event: "sign_in_failed",
+        details: { reason: "invalid_credentials" },
+        count: 1,
+      },
+    ]);
+  });
+});
+
+describe("a password reset whose revocation after its commit fails", () => {
+  // The reset waits at its new password's write, past the revocation of its
+  // own transaction, while the application role loses the right to delete
+  // sessions until the test ends. The database then refuses the revocation
+  // that follows the commit.
+  let gate: Gate | undefined;
+
+  afterEach(async () => {
+    await removeGate(owner, gate);
+    gate = undefined;
+    await owner`grant delete on app.session to dg_app`;
+  });
+
+  test("still answers success with the new password in force and the sessions revoked, and logs the failure without the e-mail", async () => {
+    const account = await signedUp();
+    const token = await resetTokenOf(await resetLinkFor(account.email));
+    gate = await closedGate(owner, "update", "account", account.userId);
+    const resetting = printedDuring(() => resetPassword(token));
+    await gate.reached();
+    await owner`revoke delete on app.session from dg_app`;
+
+    await gate.open();
+    const { result: response, printed } = await resetting;
+
+    expect(response.status).toBe(200);
+    expect(printed).toMatch(
+      /Password reset failed revoking the sessions again: \w+ \(42501\)/,
+    );
+    expect(printed).not.toContain(account.email);
+    expect(printed).not.toContain(account.email.split("@")[0]);
+    expect(await sessionsOf(account.userId)).toBe(0);
+    expect(await emailVerified(account.userId)).toBe(true);
+    expect((await signIn(account.email, newPassword)).status).toBe(200);
   });
 });
 
@@ -365,7 +453,9 @@ describe("the e-mail's link of a password reset whose database read fails", () =
     const token = new URL(link).pathname.split("/").pop() ?? "";
     await owner`revoke select on app.verification from dg_app`;
 
-    const { result: response, printed } = await printedDuring(() => open(link));
+    const { result: response, printed } = await printedDuring(() =>
+      openLink(link),
+    );
 
     expect(response.status).toBe(500);
     expect(printed).toMatch(/An auth request failed: \w+ \(42501\)/);
@@ -475,9 +565,22 @@ describe("the security log of a password reset (A5.1)", () => {
     expect(await securityEvents("password_reset_requested")).toEqual([]);
   });
 
+  // Better Auth's router checks the destination's origin before any hook runs.
+  test("gains nothing for a request whose destination is on another domain", async () => {
+    const account = await signedUp();
+
+    const response = await post("/request-password-reset", {
+      email: account.email,
+      redirectTo: "https://outro-site.example/redefinir-senha",
+    });
+
+    expect(response.status).toBe(403);
+    expect(await securityEvents("password_reset_requested")).toEqual([]);
+  });
+
   test("gains a password_reset_completed row with the time, the account, the full IP and the user agent", async () => {
     const account = await signedUp();
-    const token = await tokenOf(await resetLinkFor(account.email));
+    const token = await resetTokenOf(await resetLinkFor(account.email));
     const ip = nextTestIp();
 
     await resetPassword(token, newPassword, ip);
@@ -562,7 +665,7 @@ describe("a password reset whose security log write fails", () => {
     const { result: link } = await printedDuring(() =>
       resetLinkFor(account.email),
     );
-    const token = await tokenOf(link);
+    const token = await resetTokenOf(link);
     const ip = nextTestIp();
 
     const { result: response, printed } = await printedDuring(() =>

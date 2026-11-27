@@ -4,7 +4,7 @@ import { auth } from "@/data/auth";
 import { testBaseUrl } from "@/test/base-url";
 import { connect, testDatabase } from "@/test/db/test-database";
 import { nextTestIp } from "@/test/ip";
-import { fakeMailer, linkOf } from "@/test/mailer";
+import { fakeMailer, linkOf, resetTokenOf } from "@/test/mailer";
 
 // The public sign-up is closed in this file, as in production until DP-02,
 // DP-04 and DP-11 are answered (A1.13). The configuration is read when the code
@@ -94,21 +94,7 @@ describe("with the public sign-up closed (A2.20)", () => {
       email: form.email,
       redirectTo: "/redefinir-senha",
     });
-    // The link, opened as a webmail opens it, sends the browser on to the app's
-    // page with the token.
-    const opened = await auth.handler(
-      new Request(linkOf(fakeMailer.sent[0]), {
-        headers: {
-          "sec-fetch-site": "cross-site",
-          "sec-fetch-mode": "navigate",
-          "sec-fetch-dest": "document",
-          "x-forwarded-for": nextTestIp(),
-        },
-      }),
-    );
-    const token = new URL(
-      opened.headers.get("location") ?? "",
-    ).searchParams.get("token");
+    const token = await resetTokenOf(linkOf(fakeMailer.sent[0]));
     const reset = await post("/reset-password", {
       token,
       newPassword: "senha-nova-de-teste-2",

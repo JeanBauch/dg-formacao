@@ -186,9 +186,10 @@ describe("the rate limit of the requests that send an e-mail (A3.8)", () => {
     "counts each IP apart: another IP still gets its first request to %s through",
     async (route, body) => {
       const blocked = nextTestIp();
-      for (let request = 1; request <= 4; request += 1) {
+      for (let request = 1; request <= 3; request += 1) {
         await post(route, body, blocked);
       }
+      expect((await post(route, body, blocked)).status).toBe(429);
 
       const other = nextTestIp();
       const response = await post(route, body, other);

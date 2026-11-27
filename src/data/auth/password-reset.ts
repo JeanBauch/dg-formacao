@@ -3,15 +3,21 @@ import type { BetterAuthPlugin } from "better-auth";
 import { APIError, createAuthMiddleware, isAPIError } from "better-auth/api";
 import { z } from "zod";
 import { recordSecurityEvent } from "@/data/audit";
-import { loggable } from "./loggable";
+import { type ErrorLogger, loggable } from "./loggable";
 import { requesterOf } from "./requester";
+
+// Better Auth's routes of a password reset, named as its router names them:
+// the request, which sends the e-mail with the link, and the completion, which
+// sets the new password.
+const requestRoute = "/request-password-reset";
+const completionRoute = "/reset-password";
 
 // A request for a password reset names the app's page its link sends the
 // holder to (`redirectTo`), which Better Auth checks is of the app's own origin.
 const destination = z.object({ redirectTo: z.string().min(1) });
 
 // The e-mail a request asked the reset for, once Better Auth has validated it.
-const resetRequest = z.object({ email: z.string() });
+const requestedEmail = z.object({ email: z.string() });
 
 // The password reset request's own hooks.
 //
@@ -27,7 +33,7 @@ export const passwordResetRequest = {
   hooks: {
     before: [
       {
-        matcher: (ctx) => ctx.path === "/request-password-reset",
+        matcher: (ctx) => ctx.path === requestRoute,
         handler: createAuthMiddleware(async (ctx) => {
           if (destination.safeParse(ctx.body).success) return;
           throw APIError.from("BAD_REQUEST", {
@@ -40,20 +46,20 @@ export const passwordResetRequest = {
     ],
     after: [
       {
-        matcher: (ctx) => ctx.path === "/request-password-reset",
+        matcher: (ctx) => ctx.path === requestRoute,
         handler: createAuthMiddleware(async (ctx) => {
           // A refused request records nothing. `isAPIError` also knows the
           // refusal of a body that fails validation, which the router throws
           // with its own error class, not the one `APIError.from` makes.
           if (isAPIError(ctx.context.returned)) return;
-          const { email } = resetRequest.parse(ctx.body);
+          const { email } = requestedEmail.parse(ctx.body);
           try {
             const found =
               await ctx.context.internalAdapter.findUserByEmail(email);
             await recordSecurityEvent({
               event: "password_reset_requested",
               userId: found?.user.id ?? null,
-              route: ctx.path,
+              route: requestRoute,
               ...requesterOf(ctx.headers ?? ctx.request?.headers),
             });
           } catch (error) {
@@ -69,16 +75,25 @@ export const passwordResetRequest = {
   },
 } satisfies BetterAuthPlugin;
 
-// What the completion of a password reset uses of Better Auth's context.
-type AuthContext = {
+// What the follow-up of a password reset uses of Better Auth's context.
+type ResetFollowUpContext = {
   internalAdapter: {
+    deleteUserSessions(userId: string): Promise<unknown>;
     updateUser(userId: string, data: { emailVerified: true }): Promise<unknown>;
   };
-  logger: { error(message: string): void };
+  logger: ErrorLogger;
 };
 
-// Runs as Better Auth's `emailAndPassword.onPasswordReset`, once the new
-// password is saved, with the request that saved it.
+// Runs as Better Auth's `emailAndPassword.onPasswordReset`, with the request
+// that completed the reset, once Better Auth has completed it: one
+// transaction, now committed, spent the link, revoked the account's sessions
+// and saved the new password.
+//
+// A sign-in with the old password that Better Auth checked before that commit
+// can write its session after the transaction's revocation ran, so the
+// sessions are revoked again, after the commit (A3.6). A session that such a
+// sign-in writes later still goes: the sign-in checks its password again once
+// its session exists, and by then finds the new one.
 //
 // Using the link proves the holder gets the e-mail sent to that address, so an
 // e-mail not yet verified becomes verified (A3.13). The mark goes through
@@ -88,12 +103,21 @@ type AuthContext = {
 // Nothing here throws: the password has changed already, and an error would
 // answer the reset with a failure that did not happen. A mark that fails
 // leaves the verification pending, for the confirmation's own flow.
-export async function completePasswordReset(
-  context: Promise<AuthContext>,
+export async function afterPasswordReset(
+  context: Promise<ResetFollowUpContext>,
   { user }: { user: { id: string; emailVerified: boolean } },
   request: Request | undefined,
 ) {
   const { internalAdapter, logger } = await context;
+  try {
+    await internalAdapter.deleteUserSessions(user.id);
+  } catch (error) {
+    // The transaction's own revocation stands: only a session that a sign-in
+    // wrote in the window above would stay.
+    logger.error(
+      `Password reset failed revoking the sessions again: ${loggable(error)}`,
+    );
+  }
   if (!user.emailVerified) {
     try {
       await internalAdapter.updateUser(user.id, { emailVerified: true });
@@ -109,7 +133,7 @@ export async function completePasswordReset(
     await recordSecurityEvent({
       event: "password_reset_completed",
       userId: user.id,
-      route: "/reset-password",
+      route: completionRoute,
       ...requesterOf(request?.headers),
     });
   } catch (error) {
