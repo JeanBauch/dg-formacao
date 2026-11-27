@@ -13,7 +13,7 @@ import { testBaseUrl } from "@/test/base-url";
 import { printedDuring } from "@/test/console";
 import { connect, testDatabase } from "@/test/db/test-database";
 import { nextTestIp } from "@/test/ip";
-import { fakeMailer, linkOf } from "@/test/mailer";
+import { fakeMailer, linkOf, openLink } from "@/test/mailer";
 
 // Seam 1: the Better Auth HTTP handler, in the process, over the test database,
 // with the e-mail going through the in-process adapter. The code under test
@@ -54,21 +54,6 @@ function signUp(form: ReturnType<typeof holder>) {
         "x-forwarded-for": nextTestIp(),
       },
       body: JSON.stringify(form),
-    }),
-  );
-}
-
-// A link of an e-mail, opened as a webmail opens it: the browser navigates its
-// tab to it from another site, which the handler lets through (#12).
-function open(link: string) {
-  return auth.handler(
-    new Request(link, {
-      headers: {
-        "sec-fetch-site": "cross-site",
-        "sec-fetch-mode": "navigate",
-        "sec-fetch-dest": "document",
-        "x-forwarded-for": nextTestIp(),
-      },
     }),
   );
 }
@@ -115,7 +100,7 @@ describe("the confirmation e-mail of a sign-up (A3.1)", () => {
     await signUp(form);
     expect(await emailVerified(form.email)).toBe(false);
 
-    const response = await open(linkOf(fakeMailer.sent[0]));
+    const response = await openLink(linkOf(fakeMailer.sent[0]));
 
     // The link sends the holder on to a page of the app, the home.
     expect(response.status).toBe(302);
@@ -131,7 +116,7 @@ describe("the confirmation e-mail of a sign-up (A3.1)", () => {
       await signUp(form);
 
       vi.setSystemTime(instant.getTime() + 59 * minute);
-      await open(linkOf(fakeMailer.sent[0]));
+      await openLink(linkOf(fakeMailer.sent[0]));
 
       expect(await emailVerified(form.email)).toBe(true);
     });
@@ -141,7 +126,7 @@ describe("the confirmation e-mail of a sign-up (A3.1)", () => {
       await signUp(form);
 
       vi.setSystemTime(instant.getTime() + 61 * minute);
-      const response = await open(linkOf(fakeMailer.sent[0]));
+      const response = await openLink(linkOf(fakeMailer.sent[0]));
 
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toMatch(/^\/\?error=/);

@@ -15,6 +15,7 @@ import { cookiesOf } from "@/test/cookies";
 import { columnTypes } from "@/test/db/column-types";
 import { statementsSentDuring } from "@/test/db/statements";
 import { connect, testDatabase } from "@/test/db/test-database";
+import { closedGate, type Gate, removeGate } from "@/test/db/write-gate";
 import { nextTestIp, nextTestIpv6Network } from "@/test/ip";
 import { holderPassword as password, signedInHolder } from "@/test/request";
 
@@ -604,7 +605,7 @@ describe("the work of a sign-in (NF-2)", () => {
     });
   });
 
-  test("sends the database the same 8 statements, whatever sessions and events the account already has", async () => {
+  test("sends the database the same 9 statements, whatever sessions and events the account already has", async () => {
     const { email, userId } = await signedInHolder();
     const signIn = () =>
       statementsSentDuring(() =>
@@ -626,9 +627,10 @@ describe("the work of a sign-in (NF-2)", () => {
 
     // The rate limit of the IP (its row read, then created), the user with
     // the e-mail and its login identities, the user again for the admin
-    // plugin's ban check, the session, and the security log: the day's rows
-    // for the daily cap, then the minute's row.
-    expect(first).toHaveLength(8);
+    // plugin's ban check, the session, the password login identity again for
+    // the second check of the password (A3.6), and the security log: the
+    // day's rows for the daily cap, then the minute's row.
+    expect(first).toHaveLength(9);
     expect(later).toEqual(first);
   });
 });
@@ -680,4 +682,40 @@ describe("a sign-in whose security log write fails", () => {
       expect(printed).not.toContain(email);
     },
   );
+});
+
+describe("a sign-in whose second check of the password fails", () => {
+  // Once the session exists, the sign-in reads the password again (A3.6). The
+  // session's write waits at a gate while the application role loses the
+  // right to read the login identities, so the database refuses that read.
+  let gate: Gate | undefined;
+
+  afterEach(async () => {
+    await removeGate(owner, gate);
+    gate = undefined;
+    await owner`grant select on app.account to dg_app`;
+  });
+
+  test("answers the sign-in's failure, leaves no session, no cookie and no occurrence, and logs it without the e-mail (NF-2, RNF-OBS-01)", async () => {
+    const { email, userId } = await signedInHolder();
+    const before = await recordsOf(userId);
+    gate = await closedGate(owner, "insert", "session", userId);
+    const signingIn = printedDuring(() =>
+      post("/sign-in/email", { email, password }),
+    );
+    await gate.reached();
+    await owner`revoke select on app.account from dg_app`;
+
+    await gate.open();
+    const { result: response, printed } = await signingIn;
+
+    expect(response.status).toBe(500);
+    expect(await response.json()).toMatchObject({ code: "SIGN_IN_FAILED" });
+    expect(response.headers.getSetCookie()).toEqual([]);
+    expect(await recordsOf(userId)).toEqual(before);
+    expect(printed).toMatch(
+      /Sign-in failed checking its password again: \w+ \(42501\); the new session was deleted/,
+    );
+    expect(printed).not.toContain(email);
+  });
 });

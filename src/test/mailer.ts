@@ -1,5 +1,6 @@
 import type { Email } from "@/infra/mailer";
 import { createFakeMailer } from "@/infra/mailer/fake";
+import { nextTestIp } from "./ip";
 
 // Seam 1: the e-mail goes through the in-process adapter, which the database
 // tests put in place of the application's `@/infra/mailer` (environment.ts):
@@ -21,4 +22,30 @@ export function linkOf({ text }: Email) {
     throw new Error(`Expected one link in the e-mail, found ${links.length}`);
   }
   return links[0];
+}
+
+// A link of an e-mail, opened as a webmail opens it: the browser navigates its
+// tab to it from another site, which the auth handler lets through (#12). Auth
+// is loaded here, not at the top, because it loads the mailer, which this
+// module stands in for.
+export async function openLink(link: string) {
+  const { auth } = await import("@/data/auth");
+  return auth.handler(
+    new Request(link, {
+      headers: {
+        "sec-fetch-site": "cross-site",
+        "sec-fetch-mode": "navigate",
+        "sec-fetch-dest": "document",
+        "x-forwarded-for": nextTestIp(),
+      },
+    }),
+  );
+}
+
+// The token the app's page receives once a password reset's link is opened:
+// Better Auth sends the browser on to the page with it.
+export async function resetTokenOf(link: string) {
+  const response = await openLink(link);
+  const destination = new URL(response.headers.get("location") ?? "");
+  return destination.searchParams.get("token") ?? "";
 }

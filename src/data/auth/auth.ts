@@ -17,7 +17,8 @@ import {
 } from "./emails";
 import { authBasePath, disabledPaths, servedOverHttp } from "./http";
 import { printAuthLog } from "./loggable";
-import { recordSignIn } from "./sign-in";
+import { afterPasswordReset, passwordResetRequest } from "./password-reset";
+import { afterSignIn } from "./sign-in";
 import {
   recordHolderProfileAndConsents,
   refuseIncompleteSignUp,
@@ -41,7 +42,15 @@ const betterAuthInstance = betterAuth({
     // RF-AUT-02: the verification gates a child profile (R3), not the sign-in.
     requireEmailVerification: false,
     resetPasswordTokenExpiresIn: passwordResetLinkLifetime.seconds, // RF-AUT-04
+    // Whoever had the old password loses the access it gave (A3.6). A sign-in
+    // with the old password that crosses the reset loses its session too: see
+    // afterPasswordReset and afterSignIn.
+    revokeSessionsOnPasswordReset: true,
     sendResetPassword: sendPasswordResetEmail,
+    // Runs once the reset has committed, with Better Auth's own context: the
+    // instance below, which exists by the time any request runs.
+    onPasswordReset: (reset, request): Promise<void> =>
+      afterPasswordReset(betterAuthInstance.$context, reset, request),
   },
   // The confirmation link is valid for an hour (A3.1). The sign-up's own is
   // sent by `signUpConfirmation`, once the sign-up has ended well.
@@ -59,13 +68,18 @@ const betterAuthInstance = betterAuth({
   // On in every environment (the default is off outside production), with the
   // counters in the database: memory dies with each serverless instance. Each
   // IP has its own counter per route, keyed by the route as Better Auth names
-  // it, without the base path (A2.11).
+  // it, without the base path (A2.11, A3.8).
   rateLimit: {
     enabled: true,
     storage: "database",
     customRules: {
       "/sign-in/email": { window: 60, max: 5 },
       "/sign-up/email": { window: 60, max: 3 },
+      // Better Auth 1.7.15 gives these two the same rule by default, from an
+      // internal list. Stated here, the limit A3.8 sets stays the same if an
+      // upgrade changes that list.
+      "/request-password-reset": { window: 60, max: 3 },
+      "/send-verification-email": { window: 60, max: 3 },
     },
   },
   // Only the routes the R0 uses answer over HTTP (A4.17, A2.20).
@@ -77,7 +91,7 @@ const betterAuthInstance = betterAuth({
   // Better Auth logs some errors it catches whole; this prints them without
   // the values of the failed query (RNF-OBS-01).
   logger: { log: printAuthLog },
-  hooks: { before: refuseIncompleteSignUp, after: recordSignIn },
+  hooks: { before: refuseIncompleteSignUp, after: afterSignIn },
   databaseHooks: {
     user: { create: { after: recordHolderProfileAndConsents } },
     // The session keeps no IP: the full IP goes only to the security log
@@ -98,8 +112,11 @@ const betterAuthInstance = betterAuth({
     // The same UUIDv7 generator as every other table (skill data-layer).
     database: { generateId: () => uuidv7() },
   },
-  // nextCookies stays last, as the Better Auth docs require.
-  plugins: [admin(), signUpConfirmation, nextCookies()],
+  // The top-level hooks above take one middleware each, so the app's other
+  // hooks come in plugins of its own, which take a list: the sign-up's
+  // confirmation, and the password reset request's destination and security
+  // log. nextCookies stays last, as the Better Auth docs require.
+  plugins: [admin(), signUpConfirmation, passwordResetRequest, nextCookies()],
 });
 
 // The app's Better Auth: its server API as it is, and its HTTP handler as the
