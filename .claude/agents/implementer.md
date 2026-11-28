@@ -5,6 +5,7 @@ model: sonnet
 skills:
   - mattpocock-skills:tdd
   - data-layer
+  - auth-identity
   - next-architecture
   - react-state
   - seo
