@@ -32,9 +32,11 @@ Sign-up, sign-in, password reset and e-mail verification forms use the Better Au
 
 `proxy.ts` checks only that the session cookie exists (`getSessionCookie`) and redirects to sign-in, keeping the requested path (RF-AUT-07). Authorization happens in the gate.
 
+A password-reset request answers an e-mail with no account exactly as an e-mail with an account, verified or not, and only an account gets a message (RF-AUT-04, confirmed in 1.7.15). Test: `src/data/auth/password-reset.db.test.ts`, "a password reset request (A3.5, U5) > answers an e-mail with no account exactly as an e-mail with an account, verified or not, and only the accounts get a message".
+
 ## Branches
 
-- Changing `src/data/auth/auth.ts` or any Better Auth option: [CONFIG.md](CONFIG.md)
+- Changing `src/data/auth/auth.ts` or any Better Auth option, adding a private page or changing the private area's layout or `proxy.ts`, or changing the sign-up's call in the browser client: [CONFIG.md](CONFIG.md)
 - Profiles, the active profile, the PIN, the child catalog scope, the holder's read-only view: [PROFILES.md](PROFILES.md)
 - Staff roles, invites, staff sessions, sensitive actions, admin endpoints: [STAFF.md](STAFF.md)
 
@@ -47,7 +49,6 @@ Sign-up, sign-in, password reset and e-mail verification forms use the Better Au
 ## Unverified (confirm in R0, then delete this section)
 
 - U4: the admin plugin stores several roles comma-separated in `role` and honours all of them.
-- U5: a password-reset request returns the same response for an unknown e-mail.
 - U6: `after()` works inside Better Auth's e-mail callbacks, since they run in the request scope of the route handler. Proven for the confirmation e-mail on the production server (#15) by `e2e/email-confirmation.spec.ts` together with the mailer's unit test (`src/infra/mailer/mailer.test.ts`, "the file adapter holds the send in after(), and the message reaches the mailbox only when Next runs it"), because the E2E alone also passes without the deferral; the password reset's stays with #23.
 - U11: `disabledPaths` is checked only by the HTTP router, so the admin plugin's permission check, called by the server, still works with its HTTP route disabled (CONFIG.md, STAFF.md).
 - U12: Better Auth deletes the expired rate-limit rows in the database. The 1.5 release notes mention the automatic cleanup only for in-memory storage, so read the 1.7.15 code. The daily job deletes them either way (CONFIG.md).
