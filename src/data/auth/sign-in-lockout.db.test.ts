@@ -16,8 +16,7 @@ import { closedGate, type Gate, removeGate } from "@/test/db/write-gate";
 import { nextTestIp } from "@/test/ip";
 import { fakeMailer, linkOf, resetTokenOf } from "@/test/mailer";
 import { holderPassword, signedInHolder } from "@/test/request";
-import { staffAccount } from "@/test/staff";
-import { countFailedSignIn } from "./sign-in-lockout";
+import { staffUser } from "@/test/staff";
 
 // Seam 1: the Better Auth HTTP handler, in the process, over the test database.
 // The rate limit counts per IP, so each attempt comes from its own simulated
@@ -81,17 +80,17 @@ async function failSignIns(email: string, failures: number) {
   }
 }
 
-// A holder's account, with the password it signs in with.
-async function holderAccount() {
+// A holder, with the password they sign in with.
+async function holderUser() {
   const { email, userId } = await signedInHolder();
   return { email, userId, password: holderPassword };
 }
 
 describe("the lockout of an account after failed sign-ins in a row (A2.15)", () => {
   test.each([
-    ["a holder", holderAccount],
-    ["an instructor", () => staffAccount("instructor")],
-    ["an admin", () => staffAccount("admin")],
+    ["a holder", holderUser],
+    ["an instructor", () => staffUser("instructor")],
+    ["an admin", () => staffUser("admin")],
   ])(
     "of %s: the 5th failure locks its sign-in for 1 minute",
     async (_, account) => {
@@ -106,14 +105,14 @@ describe("the lockout of an account after failed sign-ins in a row (A2.15)", () 
   );
 
   test("4 failures in a row lock nothing: the right password still signs in", async () => {
-    const { email, password } = await holderAccount();
+    const { email, password } = await holderUser();
     await failSignIns(email, 4);
 
     expect((await signIn(email, password)).status).toBe(200);
   });
 
   test("each failure after a lock locks it for longer: 5 minutes, then 15, the ceiling", async () => {
-    const { email, password } = await holderAccount();
+    const { email, password } = await holderUser();
     await failSignIns(email, 5);
 
     // The 6th failure, once the first lock has ended, locks for 5 minutes.
@@ -166,7 +165,7 @@ describe("the security log of a lockout (A5.1)", () => {
   });
 
   test("gains an account_locked row for the failure that starts the lock, with the time, the account, the full IP, the user agent and the lock's minutes", async () => {
-    const { email, userId } = await holderAccount();
+    const { email, userId } = await holderUser();
     await failSignIns(email, 4);
     const ip = nextTestIp();
 
@@ -192,7 +191,7 @@ describe("the security log of a lockout (A5.1)", () => {
   });
 
   test("gains one account_locked row for each lock, with its minutes: 1, then 5, then 15", async () => {
-    const { email } = await holderAccount();
+    const { email } = await holderUser();
     await failSignIns(email, 5);
     secondsLater(61);
     await failSignIns(email, 1);
@@ -211,7 +210,7 @@ describe("the security log of a lockout (A5.1)", () => {
   });
 
   test("gains nothing for a sign-in refused during the lock, with the right password or a wrong one", async () => {
-    const { email, password } = await holderAccount();
+    const { email, password } = await holderUser();
     await failSignIns(email, 5);
     const before = await securityEvents();
 
@@ -256,7 +255,7 @@ async function expectFirstLockNext(email: string, password: string) {
 
 describe("the failed sign-ins of an account, counted again from zero (A2.17)", () => {
   test("after a sign-in with the right password: the next lock is the first one, for 1 minute", async () => {
-    const { email, password } = await holderAccount();
+    const { email, password } = await holderUser();
     await failSignIns(email, 5);
     secondsLater(61);
     await failSignIns(email, 1);
@@ -267,7 +266,7 @@ describe("the failed sign-ins of an account, counted again from zero (A2.17)", (
   });
 
   test("after a password reset: a locked account signs in at once with the new password, and the next lock is the first one", async () => {
-    const { email } = await holderAccount();
+    const { email } = await holderUser();
     const newPassword = "senha-nova-de-teste-2";
     await failSignIns(email, 5);
     secondsLater(61);
@@ -300,7 +299,7 @@ describe("a sign-in with the old password, refused after a password reset that c
   });
 
   test("counts as a failure in a row, as a wrong password does", async () => {
-    const { email, userId, password } = await holderAccount();
+    const { email, userId, password } = await holderUser();
     const token = await resetTokenFor(email);
     // The sign-in has checked the old password, and waits at its session's
     // write until the reset has answered.
@@ -320,8 +319,8 @@ describe("a sign-in with the old password, refused after a password reset that c
   });
 });
 
-// Seam 2: the auth module's count of a failed sign-in, the one its sign-in
-// hook calls, against the real Postgres.
+// Wrong passwords sent to one account at the same time, each from its own
+// simulated IP, so the rate limit refuses none of them.
 describe("failed sign-ins of one account at the same time (A2.18)", () => {
   let gate: Gate | undefined;
 
@@ -330,22 +329,28 @@ describe("failed sign-ins of one account at the same time (A2.18)", () => {
     gate = undefined;
   });
 
-  test("each count: 4 at once leave the counter at 4, and each gets its own count back", async () => {
-    const { email, userId } = await holderAccount();
-    // The four writes wait at the gate together, then go on at once.
+  test("each count: 5 at once leave the counter at 5, and only the one that gets the 5th back starts a lock, for 1 minute", async () => {
+    const { email, userId } = await holderUser();
+    // The five counts wait at the counter's write together, then go on at
+    // once.
     gate = await closedGate(owner, "insert", "sign_in_failures", userId);
-    const counting = Promise.all(
-      Array.from({ length: 4 }, () => countFailedSignIn(email)),
+    const signingIn = Promise.all(
+      Array.from({ length: 5 }, () => signIn(email, wrongPassword)),
     );
-    await gate.reached(4);
+    await gate.reached(5);
 
     await gate.open();
-    const counts = await counting;
+    const responses = await signingIn;
 
-    expect(counts.map((counted) => counted?.failures).sort()).toEqual([
-      1, 2, 3, 4,
+    expect(responses.map(({ status }) => status)).toEqual([
+      401, 401, 401, 401, 401,
     ]);
-    expect(await failuresOf(userId)).toEqual([{ failures: 4 }]);
+    expect(await failuresOf(userId)).toEqual([{ failures: 5 }]);
+    expect(
+      await owner`
+        select details, count from app.security_events
+        where event = 'account_locked' and user_id = ${userId}`,
+    ).toEqual([{ details: { lockMinutes: 1 }, count: 1 }]);
   });
 });
 
@@ -356,7 +361,7 @@ async function answerOf(response: Response) {
 
 describe("a sign-in to a locked account (A2.16)", () => {
   test("answers 429 with what to do, the same with the right password and a wrong one", async () => {
-    const { email, password } = await holderAccount();
+    const { email, password } = await holderUser();
     await failSignIns(email, 5);
     secondsLater(30);
 
@@ -375,7 +380,7 @@ describe("a sign-in to a locked account (A2.16)", () => {
   });
 
   test("sets no session cookie with the right password", async () => {
-    const { email, password } = await holderAccount();
+    const { email, password } = await holderUser();
     await failSignIns(email, 5);
     secondsLater(30);
 
@@ -399,7 +404,7 @@ describe("the work of a sign-in to a locked account (NF-7)", () => {
   });
 
   test("checks no password, right or wrong: Better Auth's password check is never called", async () => {
-    const { email, password } = await holderAccount();
+    const { email, password } = await holderUser();
     await failSignIns(email, 4);
     const [verify, hash] = await passwordWork();
     // The 5th failure is checked as any other, and starts the lock.
@@ -445,7 +450,7 @@ describe("a sign-in whose update of the failed sign-ins fails", () => {
   ])(
     "with %s answers the sign-in's failure, leaves no new session, no cookie and no occurrence, and logs it without the e-mail (NF-2, RNF-OBS-01)",
     async (_, tried) => {
-      const { email, userId } = await holderAccount();
+      const { email, userId } = await holderUser();
       const before = await recordsOf(userId);
 
       const { result: response, printed } = await printedDuring(() =>
@@ -475,7 +480,7 @@ describe("a sign-in whose read of the lockout fails", () => {
   });
 
   test("answers a server error before any password is checked, sets no cookie, and logs it without the e-mail (RNF-OBS-01)", async () => {
-    const { email, userId } = await holderAccount();
+    const { email, userId } = await holderUser();
     const before = await recordsOf(userId);
 
     const { result: response, printed } = await printedDuring(() =>
@@ -502,7 +507,7 @@ describe("a password reset whose count of the failed sign-ins from zero fails", 
   });
 
   test("still completes the reset, and logs the failure without the e-mail", async () => {
-    const { email, userId } = await holderAccount();
+    const { email, userId } = await holderUser();
     await failSignIns(email, 1);
 
     const { printed } = await printedDuring(() =>

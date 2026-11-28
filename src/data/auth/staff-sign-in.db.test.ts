@@ -13,10 +13,11 @@ import { testBaseUrl } from "@/test/base-url";
 import { connect, testDatabase } from "@/test/db/test-database";
 import { closedGate, type Gate, removeGate } from "@/test/db/write-gate";
 import { nextTestIp } from "@/test/ip";
-import { staffAccount, type StaffRole } from "@/test/staff";
+import { signUp } from "@/test/sign-up";
+import { type StaffRole, staffUser } from "@/test/staff";
 
 // Seam 1: the Better Auth HTTP handler, in the process, over the test database,
-// signing in the staff accounts of the tests' staff helper, one per staff role.
+// signing in the staff users of the tests' staff helper, one per staff role.
 // Each attempt comes from its own simulated IP, so the rate limit never
 // refuses one. The code under test connects as the application role; this
 // file reads the rows and cleans up as the migrations role, which owns the
@@ -70,7 +71,7 @@ describe("a staff sign-in with the right password, of fewer than 12 characters (
   test.each(staffRoles)(
     "of an %s, with 11, is refused and sends the person to set a new password, and the session the sign-in created is gone, with its cookie",
     async (role) => {
-      const { email, userId, password } = await staffAccount(role, {
+      const { email, userId, password } = await staffUser(role, {
         password: elevenCharacters,
       });
       // The sign-in writes its session: the write reaches the database and
@@ -94,7 +95,7 @@ describe("a staff sign-in with the right password, of fewer than 12 characters (
   );
 
   test.each(staffRoles)("of an %s, with 12, signs in", async (role) => {
-    const { email, userId, password } = await staffAccount(role, {
+    const { email, userId, password } = await staffUser(role, {
       password: twelveCharacters,
     });
 
@@ -105,23 +106,7 @@ describe("a staff sign-in with the right password, of fewer than 12 characters (
   });
 
   test("of a holder, with 11, signs in: the 12 characters are the staff's", async () => {
-    const response = await auth.handler(
-      new Request(`${testBaseUrl}/api/auth/sign-up/email`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-forwarded-for": nextTestIp(),
-        },
-        body: JSON.stringify({
-          name: "Maria Fictícia",
-          email: "titular-onze@example.com",
-          password: elevenCharacters,
-          adultDeclaration: true,
-          acceptance: true,
-        }),
-      }),
-    );
-    expect(response.status).toBe(200);
+    await signUp("titular-onze@example.com", elevenCharacters);
 
     expect(
       (await signIn("titular-onze@example.com", elevenCharacters)).status,
@@ -167,7 +152,7 @@ describe("the security log of a staff sign-in (A4.13, A4.11)", () => {
   test.each(staffRoles)(
     "of an %s gains one staff_sign_in_succeeded row, in place of sign_in_succeeded, with the time, the account, the full IP and the user agent",
     async (role) => {
-      const { email, userId, password } = await staffAccount(role);
+      const { email, userId, password } = await staffUser(role);
       const ip = nextTestIp();
 
       await signIn(email, password, ip);
@@ -189,7 +174,7 @@ describe("the security log of a staff sign-in (A4.13, A4.11)", () => {
   );
 
   test("refused for a password of 11 characters gains a sign_in_failed row with that reason", async () => {
-    const { email, userId, password } = await staffAccount("admin", {
+    const { email, userId, password } = await staffUser("admin", {
       password: elevenCharacters,
     });
     const ip = nextTestIp();
@@ -214,7 +199,7 @@ describe("the security log of a staff sign-in (A4.13, A4.11)", () => {
 
 describe("a staff sign-in refused for a password of fewer than 12 characters, and the lockout (A4.11, A2.15)", () => {
   test("neither counts as a failure nor counts the failures from zero: the password was right", async () => {
-    const { email, password } = await staffAccount("instructor", {
+    const { email, password } = await staffUser("instructor", {
       password: elevenCharacters,
     });
     for (let failure = 1; failure <= 4; failure += 1) {

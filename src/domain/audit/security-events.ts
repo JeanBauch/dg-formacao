@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { rolesOf } from "@/domain/auth";
+import { type LockMinutes, rolesOf } from "@/domain/auth";
 
 // The events of the security log (registro de segurança, RNF-SEG-15), a closed
 // enum of the database. The PIN lockout joins in R3 as a new value, in an
@@ -35,7 +35,7 @@ export type SecurityEvent = {
 } & (
   | { event: "sign_in_failed"; reason: SignInFailureReason }
   | { event: "access_denied"; status: 403 | 404 }
-  | { event: "account_locked"; lockMinutes: 1 | 5 | 15 }
+  | { event: "account_locked"; lockMinutes: LockMinutes }
   | {
       event: Exclude<
         SecurityEventType,

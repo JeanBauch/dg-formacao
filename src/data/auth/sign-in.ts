@@ -3,7 +3,7 @@ import { type AuthContext, BASE_ERROR_CODES } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { z } from "zod";
 import { recordSecurityEvent } from "@/data/audit";
-import { isStaffRole } from "@/domain/audit";
+import { isStaffRole, type SignInFailureReason } from "@/domain/audit";
 import { lockStartedBy, staffPasswordMinLength } from "@/domain/auth";
 import { loggable } from "./loggable";
 import { requesterOf } from "./requester";
@@ -90,20 +90,22 @@ export const afterSignIn = createAuthMiddleware(async (ctx) => {
     });
   };
 
-  // A staff account by the role the sign-in has just read with the account,
-  // so a role changed since is already in force (A4.13).
-  const staff = created !== null && isStaffRole(roleOf(created.user));
-
   // Why the sign-in is refused, or null when it signs in. Once its session
   // exists, the sign-in is refused when its password no longer opens the
   // account, or when it opens a staff account with fewer than 12 characters:
   // its person sets a new password first (A4.11). That check runs only after
   // the password is verified, so it reveals nothing to whoever does not know
   // it. Either way the session goes, and so does its cookie.
-  let refusal: "invalid_credentials" | "staff_password_too_short" | null =
-    created ? null : "invalid_credentials";
+  let refusal: SignInFailureReason | null = created
+    ? null
+    : "invalid_credentials";
+  // A staff account by the role the sign-in has just read with the account,
+  // so a role changed since is already in force (A4.13). It is read inside the
+  // check, so a role it cannot read fails the sign-in like any other step.
+  let staff = false;
   if (created) {
     try {
+      staff = isStaffRole(roleOf(created.user));
       if (!(await opensTheAccountNow(ctx.context, created.user.id, password)))
         refusal = "invalid_credentials";
       else if (staff && password.length < staffPasswordMinLength)

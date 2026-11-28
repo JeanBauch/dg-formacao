@@ -11,8 +11,14 @@ import { isSignInLocked } from "@/domain/auth";
 // the body, so a body without it is left to Better Auth's own refusal.
 const triedEmail = z.object({ email: z.string() });
 
-// The failed sign-ins in a row of the account with this e-mail, found the way
-// the sign-in finds the account, or null when it has none or no account.
+// The account with this e-mail, found the way the sign-in finds it: Better
+// Auth keeps the e-mail in lower case and looks it up so.
+function hasEmail(email: string) {
+  return eq(user.email, email.toLowerCase());
+}
+
+// The failed sign-ins in a row of the account with this e-mail, or null when
+// it has none or there is no account.
 async function failuresOf(email: string) {
   const [found] = await db
     .select({
@@ -21,7 +27,7 @@ async function failuresOf(email: string) {
     })
     .from(signInFailures)
     .innerJoin(user, eq(user.id, signInFailures.userId))
-    .where(eq(user.email, email.toLowerCase()));
+    .where(hasEmail(email));
   return found ?? null;
 }
 
@@ -74,7 +80,7 @@ export async function countFailedSignIn(
           lastFailedAt: sql<Date>`${at}::timestamptz`.as("last_failed_at"),
         })
         .from(user)
-        .where(eq(user.email, email.toLowerCase())),
+        .where(hasEmail(email)),
     )
     .onConflictDoUpdate({
       target: signInFailures.userId,

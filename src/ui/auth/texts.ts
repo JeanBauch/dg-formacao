@@ -2,6 +2,7 @@ import {
   holderPasswordMinLength,
   type PasswordStrength,
   signUpNameMaxLength,
+  staffPasswordMinLength,
 } from "@/domain/auth";
 import type { AuthError } from "./auth-client";
 
@@ -96,6 +97,12 @@ const refusals: Record<string, string> = {
   ACCEPTANCE_REQUIRED:
     "Aceite os Termos de Uso e a Política de Privacidade para criar a conta.",
   EMAIL_ALREADY_VERIFIED: "O seu e-mail já está confirmado.",
+  // A sign-in to a locked account (A2.16), and one of a staff user whose
+  // right password is too short (A4.11). The link to reset or set the
+  // password comes with those screens (#23, #21).
+  ACCOUNT_LOCKED:
+    "Muitas tentativas; tente de novo em alguns minutos ou redefina a senha.",
+  STAFF_PASSWORD_TOO_SHORT: `Defina uma senha nova, com pelo menos ${staffPasswordMinLength} caracteres, em "Esqueci minha senha".`,
 };
 
 const tooManyRequests =
