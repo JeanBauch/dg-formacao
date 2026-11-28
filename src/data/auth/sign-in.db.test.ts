@@ -605,7 +605,7 @@ describe("the work of a sign-in (NF-2)", () => {
     });
   });
 
-  test("sends the database the same 9 statements, whatever sessions and events the account already has", async () => {
+  test("sends the database the same 11 statements, whatever sessions, events and failed sign-ins the account already has", async () => {
     const { email, userId } = await signedInHolder();
     const signIn = () =>
       statementsSentDuring(() =>
@@ -625,12 +625,15 @@ describe("the work of a sign-in (NF-2)", () => {
 
     const { statements: later } = await signIn();
 
-    // The rate limit of the IP (its row read, then created), the user with
-    // the e-mail and its login identities, the user again for the admin
-    // plugin's ban check, the session, the password login identity again for
-    // the second check of the password (A3.6), and the security log: the
-    // day's rows for the daily cap, then the minute's row.
-    expect(first).toHaveLength(9);
+    // The rate limit of the IP (its row read, then created), the account's
+    // lockout before any password is checked (A2.16), the user with the
+    // e-mail and its login identities, the user again for the admin plugin's
+    // ban check, the session, the password login identity again for the
+    // second check of the password (A3.6), the account's failed sign-ins
+    // counted from zero (A2.17), and the security log: the day's rows for the
+    // daily cap, then the minute's row. The history ends with a failure, so
+    // the account had failed sign-ins to clear this time.
+    expect(first).toHaveLength(11);
     expect(later).toEqual(first);
   });
 });

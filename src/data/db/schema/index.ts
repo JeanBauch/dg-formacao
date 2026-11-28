@@ -6,3 +6,4 @@ export * from "./auth";
 export * from "./consents";
 export * from "./profiles";
 export * from "./security-events";
+export * from "./sign-in-failures";

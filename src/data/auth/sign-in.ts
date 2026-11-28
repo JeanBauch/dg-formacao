@@ -1,25 +1,23 @@
 import "server-only";
 import { type AuthContext, BASE_ERROR_CODES } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
-import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { recordSecurityEvent } from "@/data/audit";
-import { db } from "@/data/db/client";
-import { user } from "@/data/db/schema";
+import { isStaffRole } from "@/domain/audit";
+import { lockStartedBy, staffPasswordMinLength } from "@/domain/auth";
 import { loggable } from "./loggable";
 import { requesterOf } from "./requester";
+import { clearFailedSignIns, countFailedSignIn } from "./sign-in-lockout";
 
 // What a sign-in sent, once Better Auth has validated the request.
 const signInRequest = z.object({ email: z.string(), password: z.string() });
 
-// The id of the user with this e-mail, found the way the sign-in finds it, or
-// null when the e-mail has no account.
-async function userIdWithEmail(email: string) {
-  const [found] = await db
-    .select({ id: user.id })
-    .from(user)
-    .where(eq(user.email, email.toLowerCase()));
-  return found?.id ?? null;
+// The role field the admin plugin adds to the user, which Better Auth's own
+// types leave out.
+const userWithRole = z.object({ role: z.string().nullish() });
+
+function roleOf(signedInUser: unknown) {
+  return userWithRole.parse(signedInUser).role ?? null;
 }
 
 // Whether a sign-in was refused for a wrong e-mail or password: Better Auth
@@ -92,44 +90,87 @@ export const afterSignIn = createAuthMiddleware(async (ctx) => {
     });
   };
 
-  let signedIn = created;
-  try {
-    if (
-      created &&
-      !(await opensTheAccountNow(ctx.context, created.user.id, password))
-    ) {
-      signedIn = null;
-      await ctx.context.internalAdapter.deleteSession(created.session.token);
-      ctx.context.responseHeaders?.delete("set-cookie");
+  // A staff account by the role the sign-in has just read with the account,
+  // so a role changed since is already in force (A4.13).
+  const staff = created !== null && isStaffRole(roleOf(created.user));
+
+  // Why the sign-in is refused, or null when it signs in. Once its session
+  // exists, the sign-in is refused when its password no longer opens the
+  // account, or when it opens a staff account with fewer than 12 characters:
+  // its person sets a new password first (A4.11). That check runs only after
+  // the password is verified, so it reveals nothing to whoever does not know
+  // it. Either way the session goes, and so does its cookie.
+  let refusal: "invalid_credentials" | "staff_password_too_short" | null =
+    created ? null : "invalid_credentials";
+  if (created) {
+    try {
+      if (!(await opensTheAccountNow(ctx.context, created.user.id, password)))
+        refusal = "invalid_credentials";
+      else if (staff && password.length < staffPasswordMinLength)
+        refusal = "staff_password_too_short";
+      if (refusal !== null) {
+        await ctx.context.internalAdapter.deleteSession(created.session.token);
+        ctx.context.responseHeaders?.delete("set-cookie");
+      }
+    } catch (error) {
+      throw await failure("checking its password again", error);
     }
+  }
+  const signedIn = refusal === null ? created : null;
+
+  // A wrong password counts toward the account's lockout (A2.15), and names
+  // the account in the security log when the e-mail has one. A sign-in that
+  // succeeds counts the failures from zero again (A2.17). A staff password too
+  // short does neither: it was the right one (A4.11).
+  let failed = null;
+  try {
+    if (signedIn) await clearFailedSignIns(signedIn.user.id);
+    else if (refusal === "invalid_credentials")
+      failed = await countFailedSignIn(email);
   } catch (error) {
-    throw await failure("checking its password again", error);
+    throw await failure("updating its account's failed sign-ins", error);
   }
 
   try {
     const requester = requesterOf(ctx.headers ?? ctx.request?.headers);
-    await recordSecurityEvent(
-      signedIn
-        ? {
-            event: "sign_in_succeeded",
-            userId: signedIn.user.id,
-            route: ctx.path,
-            ...requester,
-          }
-        : {
-            event: "sign_in_failed",
-            reason: "invalid_credentials",
-            userId: created?.user.id ?? (await userIdWithEmail(email)),
-            route: ctx.path,
-            ...requester,
-          },
-    );
+    if (signedIn)
+      await recordSecurityEvent({
+        event: staff ? "staff_sign_in_succeeded" : "sign_in_succeeded",
+        userId: signedIn.user.id,
+        route: ctx.path,
+        ...requester,
+      });
+    else if (refusal !== null)
+      await recordSecurityEvent({
+        event: "sign_in_failed",
+        reason: refusal,
+        userId: failed?.userId ?? created?.user.id ?? null,
+        route: ctx.path,
+        ...requester,
+      });
+    // Only the failure that starts a lock records it, by the count it got
+    // back (A5.1). An attempt refused during the lock never gets this far.
+    const lockMinutes = failed && lockStartedBy(failed.failures);
+    if (failed && lockMinutes)
+      await recordSecurityEvent({
+        event: "account_locked",
+        lockMinutes,
+        userId: failed.userId,
+        route: ctx.path,
+        ...requester,
+      });
   } catch (error) {
     throw await failure("recording its security event", error);
   }
 
-  // Refused with a wrong password's answer (A2.10). The endpoint itself
-  // succeeded, so Better Auth answers with this error's own status.
+  // The endpoint itself succeeded, so Better Auth answers with each error's
+  // own status: a staff password too short sends its person to set a new one
+  // (A4.11), and any other refusal is a wrong password's answer (A2.10).
+  if (refusal === "staff_password_too_short")
+    throw APIError.from("FORBIDDEN", {
+      code: "STAFF_PASSWORD_TOO_SHORT",
+      message: `Defina uma senha nova, com pelo menos ${staffPasswordMinLength} caracteres, em "Esqueci minha senha".`,
+    });
   if (created && !signedIn)
     throw APIError.from(
       "UNAUTHORIZED",

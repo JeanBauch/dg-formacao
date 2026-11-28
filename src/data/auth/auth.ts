@@ -19,6 +19,7 @@ import { authBasePath, disabledPaths, servedOverHttp } from "./http";
 import { printAuthLog } from "./loggable";
 import { afterPasswordReset, passwordResetRequest } from "./password-reset";
 import { afterSignIn } from "./sign-in";
+import { signInLockout } from "./sign-in-lockout";
 import {
   recordHolderProfileAndConsents,
   refuseIncompleteSignUp,
@@ -114,9 +115,16 @@ const betterAuthInstance = betterAuth({
   },
   // The top-level hooks above take one middleware each, so the app's other
   // hooks come in plugins of its own, which take a list: the sign-up's
-  // confirmation, and the password reset request's destination and security
-  // log. nextCookies stays last, as the Better Auth docs require.
-  plugins: [admin(), signUpConfirmation, passwordResetRequest, nextCookies()],
+  // confirmation, the password reset request's destination and security log,
+  // and the lockout of a sign-in after failures in a row. nextCookies stays
+  // last, as the Better Auth docs require.
+  plugins: [
+    admin(),
+    signUpConfirmation,
+    passwordResetRequest,
+    signInLockout,
+    nextCookies(),
+  ],
 });
 
 // The app's Better Auth: its server API as it is, and its HTTP handler as the

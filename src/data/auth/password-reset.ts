@@ -5,6 +5,7 @@ import { z } from "zod";
 import { recordSecurityEvent } from "@/data/audit";
 import { type ErrorLogger, loggable } from "./loggable";
 import { requesterOf } from "./requester";
+import { clearFailedSignIns } from "./sign-in-lockout";
 
 // Better Auth's routes of a password reset, named as its router names them:
 // the request, which sends the e-mail with the link, and the completion, which
@@ -95,6 +96,9 @@ type ResetFollowUpContext = {
 // sign-in writes later still goes: the sign-in checks its password again once
 // its session exists, and by then finds the new one.
 //
+// The account's failed sign-ins count from zero again, so a locked account
+// signs in with the new password at once (A2.17, A2.19).
+//
 // Using the link proves the holder gets the e-mail sent to that address, so an
 // e-mail not yet verified becomes verified (A3.13). The mark goes through
 // Better Auth, never by a write of the app's own. The completion counts in the
@@ -116,6 +120,15 @@ export async function afterPasswordReset(
     // wrote in the window above would stay.
     logger.error(
       `Password reset failed revoking the sessions again: ${loggable(error)}`,
+    );
+  }
+  try {
+    await clearFailedSignIns(user.id);
+  } catch (error) {
+    // The failures in a row stay as they were, and so does a lock: it ends on
+    // its own, and the new password signs in once it has.
+    logger.error(
+      `Password reset failed counting the failed sign-ins from zero: ${loggable(error)}`,
     );
   }
   if (!user.emailVerified) {
