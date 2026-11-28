@@ -62,6 +62,47 @@ test("a wrong e-mail or password is refused with a message that names neither, a
   await expect(alert).toHaveText(refusal);
 });
 
+// The server's answers to a sign-in of a locked account (A2.16) and of a staff
+// user whose right password has fewer than 12 characters (A4.11), which seam 1
+// proves, stand in here for the server: the seed has no staff user, and
+// locking the seed's holder would lock it for the other tests.
+const refusedSignIns = [
+  {
+    refused: "a locked account",
+    status: 429,
+    code: "ACCOUNT_LOCKED",
+    message:
+      "Muitas tentativas; tente de novo em alguns minutos ou redefina a senha.",
+  },
+  {
+    refused: "a staff password of fewer than 12 characters",
+    status: 403,
+    code: "STAFF_PASSWORD_TOO_SHORT",
+    message:
+      'Defina uma senha nova, com pelo menos 12 caracteres, em "Esqueci minha senha".',
+  },
+];
+
+for (const { refused, status, code, message } of refusedSignIns) {
+  test(`a sign-in refused for ${refused} says what to do, in the server's words`, async ({
+    page,
+  }) => {
+    await page.route("**/api/auth/sign-in/email", (route) =>
+      route.fulfill({ status, json: { code, message } }),
+    );
+    await page.goto("/entrar");
+
+    await signInThroughTheForm(page, {
+      email: `equipe-${randomUUID()}@example.com`,
+      password: "senha-11-ch",
+    });
+
+    // The form's own alert: Next's route announcer is an alert too.
+    await expect(page.locator("form").getByRole("alert")).toHaveText(message);
+    await expect(page).toHaveURL(`${baseUrl}/entrar`);
+  });
+}
+
 // The holder's session, as the server reads it from the browser's cookie.
 async function sessionOf(page: Page) {
   const response = await page.request.get("/api/auth/get-session");

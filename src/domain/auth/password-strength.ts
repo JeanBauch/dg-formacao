@@ -2,6 +2,10 @@
 // Better Auth counts it: in UTF-16 code units, the string's length.
 export const holderPasswordMinLength = 8;
 
+// The shortest password a staff account may have (RF-AUT-08), counted the
+// same way: the MVP's protection in place of MFA.
+export const staffPasswordMinLength = 12;
+
 export type PasswordStrength = "tooShort" | "weak" | "medium" | "strong";
 
 // The kinds of character a password can mix, each worth a point.

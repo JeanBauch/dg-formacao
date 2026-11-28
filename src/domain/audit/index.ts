@@ -11,4 +11,4 @@ export {
   securityEventTypes,
   userAgentMaxLength,
 } from "./security-events";
-export type { SecurityEvent } from "./security-events";
+export type { SecurityEvent, SignInFailureReason } from "./security-events";

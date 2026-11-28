@@ -1,8 +1,14 @@
 // The public interface of the auth module's domain.
-export { holderPasswordMinLength, passwordStrength } from "./password-strength";
+export {
+  holderPasswordMinLength,
+  passwordStrength,
+  staffPasswordMinLength,
+} from "./password-strength";
 export type { PasswordStrength } from "./password-strength";
 export { defaultReturnPath, returnPath, signInPath } from "./return-path";
 export { rolesOf } from "./roles";
+export { isSignInLocked, lockStartedBy } from "./sign-in-lockout";
+export type { LockMinutes } from "./sign-in-lockout";
 export {
   consentDocuments,
   signUpConsents,

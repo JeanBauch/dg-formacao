@@ -478,6 +478,7 @@ describe("the user's ID (A2.6)", () => {
       { table: "app.consents", type: "text" },
       { table: "app.profiles", type: "text" },
       { table: "app.session", type: "text" },
+      { table: "app.sign_in_failures", type: "text" },
     ]);
   });
 });
